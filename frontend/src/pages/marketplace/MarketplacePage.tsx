@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Filter, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Filter, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
+import { PredictionPanel } from '../../components/common/PredictionPanel';
 import { useAuthStore } from '../../store/authStore';
 
 interface Crop {
@@ -29,6 +30,17 @@ interface FarmerInfo {
   contact_number?: string;
 }
 
+const encodeStringToNumber = (value: string) => {
+  return value
+    .split('')
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+};
+
+const getCategoryLabel = (category: string) => {
+  if (category === 'all') return 'All Categories';
+  return `${category.charAt(0).toUpperCase()}${category.slice(1)}`;
+};
+
 export const MarketplacePage: React.FC = () => {
   const { user } = useAuthStore();
   const [listedCrops, setListedCrops] = useState<Crop[]>([]);
@@ -40,11 +52,67 @@ export const MarketplacePage: React.FC = () => {
   const [orderQuantity, setOrderQuantity] = useState<number>(1);
   const [advanceAmount, setAdvanceAmount] = useState<number>(0);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [showMarketInsights, setShowMarketInsights] = useState(false);
   const [filters, setFilters] = useState({
     minPrice: '',
     maxPrice: '',
     category: 'all',
   });
+
+  const marketInsightCropLabel = getCategoryLabel(filters.category);
+
+  const marketDemandInput = useMemo(() => {
+    const matchingCrops = listedCrops.filter((crop) => {
+      if (searchTerm && !crop.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+          !crop.description?.toLowerCase().includes(searchTerm.toLowerCase())) {
+        return false;
+      }
+
+      if (filters.minPrice && crop.price && crop.price < parseInt(filters.minPrice, 10)) {
+        return false;
+      }
+
+      if (filters.maxPrice && crop.price && crop.price > parseInt(filters.maxPrice, 10)) {
+        return false;
+      }
+
+      if (filters.category !== 'all') {
+        const isMatch = crop.name.toLowerCase().includes(filters.category.toLowerCase());
+        if (!isMatch) return false;
+      }
+
+      return true;
+    });
+
+    const avgPrice = matchingCrops.length
+      ? matchingCrops.reduce((sum, crop) => sum + (crop.price || 0), 0) / matchingCrops.length
+      : 0;
+    const totalQuantity = matchingCrops.reduce((sum, crop) => sum + (crop.quantity || 0), 0);
+    const categorySeed = encodeStringToNumber(filters.category);
+    const searchSeed = encodeStringToNumber(searchTerm.toLowerCase());
+    const now = new Date();
+
+    return {
+      features: [
+        now.getFullYear(),
+        now.getMonth() + 1,
+        now.getDate(),
+        now.getDay() || 7,
+        categorySeed % 1000,
+        searchSeed % 500,
+        matchingCrops.length,
+        Number(avgPrice.toFixed(2)),
+        parseInt(filters.minPrice || '0', 10) || 0,
+        parseInt(filters.maxPrice || '0', 10) || 0,
+        listedCrops.length,
+        matchingCrops.filter((crop) => (crop.price || 0) > avgPrice).length,
+        matchingCrops.filter((crop) => (crop.price || 0) <= avgPrice).length,
+        totalQuantity,
+        Number((matchingCrops.length ? totalQuantity / matchingCrops.length : 0).toFixed(2)),
+        1,
+      ],
+    };
+  }, [filters.category, filters.maxPrice, filters.minPrice, listedCrops, searchTerm]);
 
   // Fetch crops on mount
   useEffect(() => {
@@ -212,6 +280,32 @@ export const MarketplacePage: React.FC = () => {
         <h1 className="text-2xl font-bold">Agricultural Marketplace</h1>
         <p className="mt-2">Browse high-quality produce directly from farmers.</p>
       </div>
+
+      <Card className="border border-amber-200">
+        <CardContent className="p-0">
+          <button
+            type="button"
+            className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-amber-50 transition-colors"
+            onClick={() => setShowMarketInsights((prev) => !prev)}
+          >
+            <div>
+              <h2 className="text-lg font-semibold text-amber-900">Market Insights</h2>
+              <p className="text-sm text-amber-700">Predicted demand for the current crop filter</p>
+            </div>
+            {showMarketInsights ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </button>
+
+          {showMarketInsights && (
+            <div className="p-4 pt-0">
+              <PredictionPanel
+                mode="demand"
+                inputData={marketDemandInput}
+                cropName={marketInsightCropLabel}
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
       
       {/* Search and filters */}
       <div className="flex flex-col md:flex-row gap-4 items-center">

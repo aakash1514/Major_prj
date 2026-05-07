@@ -24,6 +24,9 @@ interface Order {
   crop_id: string;
   status: string;
   payment_status: string;
+  paid_to_farmer?: boolean;
+  farmer_paid_at?: string | null;
+  settlement_note?: string | null;
   total_amount: number;
   advance_amount: number;
   quantity: number;
@@ -57,6 +60,7 @@ export const AdminOrders: React.FC = () => {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [assigningOrder, setAssigningOrder] = useState<string | null>(null);
+  const [settlingOrder, setSettlingOrder] = useState<string | null>(null);
 
   // Fetch initial data
   useEffect(() => {
@@ -140,6 +144,36 @@ export const AdminOrders: React.FC = () => {
       alert('Error assigning transporter');
     } finally {
       setAssigningOrder(null);
+    }
+  };
+
+  const handleMarkFarmerSettlement = async (orderId: string) => {
+    try {
+      setSettlingOrder(orderId);
+      const token = localStorage.getItem('token');
+      const note = window.prompt('Optional settlement note for audit trail:', 'Settlement transferred to farmer') || 'Settlement transferred to farmer';
+
+      const response = await fetch(`http://localhost:5000/api/orders/${orderId}/settle-farmer`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ note })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to mark settlement');
+      }
+
+      alert('Farmer settlement marked successfully.');
+      await fetchAllData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to mark settlement';
+      alert(message);
+    } finally {
+      setSettlingOrder(null);
     }
   };
 
@@ -328,6 +362,11 @@ export const AdminOrders: React.FC = () => {
                               >
                                 {order.payment_status.replace('-', ' ').toUpperCase()}
                               </Badge>
+                              {order.payment_status === 'fully-paid' && (
+                                <p className={`text-xs mt-1 ${order.paid_to_farmer ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                  {order.paid_to_farmer ? 'Farmer settled' : 'Farmer settlement pending'}
+                                </p>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -532,6 +571,18 @@ export const AdminOrders: React.FC = () => {
                           {selectedOrderData.payment_status.replace('-', ' ').toUpperCase()}
                         </Badge>
                       </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Farmer Settlement:</span>
+                        <Badge variant={selectedOrderData.paid_to_farmer ? 'success' : 'warning'}>
+                          {selectedOrderData.paid_to_farmer ? 'SETTLED' : 'PENDING'}
+                        </Badge>
+                      </div>
+                      {selectedOrderData.farmer_paid_at && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Settled At:</span>
+                          <span className="font-medium">{new Date(selectedOrderData.farmer_paid_at).toLocaleString()}</span>
+                        </div>
+                      )}
                       {selectedOrderData.advance_amount && (
                         <>
                           <div className="flex justify-between">
@@ -545,6 +596,18 @@ export const AdminOrders: React.FC = () => {
                             </span>
                           </div>
                         </>
+                      )}
+
+                      {selectedOrderData.payment_status === 'fully-paid' && !selectedOrderData.paid_to_farmer && (
+                        <Button
+                          variant="success"
+                          size="sm"
+                          fullWidth
+                          onClick={() => handleMarkFarmerSettlement(selectedOrderData.id)}
+                          disabled={settlingOrder === selectedOrderData.id}
+                        >
+                          {settlingOrder === selectedOrderData.id ? 'Marking...' : 'Mark Paid to Farmer'}
+                        </Button>
                       )}
                     </div>
                   </div>

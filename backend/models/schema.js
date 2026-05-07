@@ -99,6 +99,15 @@ export const initDatabase = async () => {
         crop_id UUID NOT NULL REFERENCES crops(id) ON DELETE CASCADE,
         status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'assigned', 'in-transit', 'delivered')),
         payment_status VARCHAR(50) DEFAULT 'pending' CHECK (payment_status IN ('pending', 'advance-paid', 'fully-paid')),
+        payment_method VARCHAR(50),
+        razorpay_order_id VARCHAR(100),
+        razorpay_payment_id VARCHAR(100),
+        razorpay_signature TEXT,
+        paid_at TIMESTAMP,
+        paid_to_farmer BOOLEAN DEFAULT false,
+        farmer_paid_at TIMESTAMP,
+        farmer_paid_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        settlement_note TEXT,
         advance_amount DECIMAL(12, 2),
         total_amount DECIMAL(12, 2) NOT NULL,
         quantity DECIMAL(10, 2) NOT NULL,
@@ -106,6 +115,44 @@ export const initDatabase = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    // Add payment tracking columns for existing installations
+    await pool.query(`
+      ALTER TABLE orders
+      ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS razorpay_order_id VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS razorpay_payment_id VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS razorpay_signature TEXT,
+      ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS paid_to_farmer BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS farmer_paid_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS farmer_paid_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS settlement_note TEXT
+    `);
+
+    // Payment audit table for traceability (buyer payment and farmer settlement actions)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS payment_audit_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        action VARCHAR(100) NOT NULL,
+        note TEXT,
+        previous_state JSONB,
+        next_state JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_payment_audit_logs_order_id
+      ON payment_audit_logs(order_id)
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_payment_audit_logs_created_at
+      ON payment_audit_logs(created_at DESC)
     `);
 
     // Transport Logs table

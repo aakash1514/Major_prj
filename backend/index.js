@@ -14,6 +14,7 @@ import buyerRoutes from './routes/buyers.js';
 import orderRoutes from './routes/orders.js';
 import agentRoutes from './routes/agent.js';
 import adminRoutes from './routes/admin.js';
+import predictionsRoutes from './routes/predictions.js';
 
 // Load environment variables
 dotenv.config();
@@ -61,6 +62,7 @@ app.use('/api/buyers', buyerRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/predictions', predictionsRoutes);
 
 // ─── ROOT ENDPOINT ───────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
@@ -74,7 +76,8 @@ app.get('/', (req, res) => {
       buyers: '/api/buyers',
       orders: '/api/orders',
       agent: '/api/agent',
-      admin: '/api/admin'
+      admin: '/api/admin',
+      predictions: '/api/predictions'
     }
   });
 });

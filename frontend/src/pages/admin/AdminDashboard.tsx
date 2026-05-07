@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Users, ShoppingBag, Truck, AlertCircle, 
@@ -8,7 +8,19 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { PredictionPanel } from '../../components/common/PredictionPanel';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+
+const encodeStringToNumber = (value: string) => {
+  return value
+    .split('')
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+};
+
+const getWeekday = (date: Date) => {
+  const day = date.getDay();
+  return day === 0 ? 7 : day;
+};
 
 interface DashboardStats {
   totalUsers: number;
@@ -40,6 +52,81 @@ export const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const topActiveCrops = useMemo(() => {
+    if (!stats) return [] as Array<{
+      id: string;
+      name: string;
+      activityScore: number;
+      priceInputData: { features: Record<string, number> };
+      demandInputData: { features: number[] };
+    }>;
+
+    const orderCounts = stats.recentOrders.reduce<Record<string, number>>((acc, order) => {
+      const key = (order.crop_name || '').trim().toLowerCase();
+      if (!key) return acc;
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    const uniqueCrops = new Map<string, DashboardStats['recentCrops'][number]>();
+    stats.recentCrops.forEach((crop) => {
+      const key = crop.name.trim().toLowerCase();
+      if (!uniqueCrops.has(key)) {
+        uniqueCrops.set(key, crop);
+      }
+    });
+
+    return Array.from(uniqueCrops.values())
+      .map((crop, index) => {
+        const cropName = crop.name || `Crop ${index + 1}`;
+        const cropSeed = encodeStringToNumber(cropName.toLowerCase());
+        const createdDate = new Date(crop.created_at);
+        const activityScore = orderCounts[cropName.trim().toLowerCase()] || 0;
+
+        return {
+          id: crop.id,
+          name: cropName,
+          activityScore,
+          priceInputData: {
+            features: {
+              'State Name': cropSeed % 36,
+              'District Name': cropSeed % 64,
+              'Market Name': (cropSeed + stats.totalOrders) % 128,
+              'Variety': cropSeed % 200,
+              'Group': cropSeed % 40,
+              'Grade': (activityScore % 3) + 1,
+              'Arrivals (Tonnes)': Math.max(0.1, Number((stats.totalCrops / 10).toFixed(2))),
+              'Month': Number.isNaN(createdDate.getTime()) ? 1 : createdDate.getMonth() + 1,
+              'Day': Number.isNaN(createdDate.getTime()) ? 1 : createdDate.getDate(),
+              'Weekday': Number.isNaN(createdDate.getTime()) ? 1 : getWeekday(createdDate),
+            },
+          },
+          demandInputData: {
+            features: [
+              new Date().getFullYear(),
+              new Date().getMonth() + 1,
+              new Date().getDate(),
+              getWeekday(new Date()),
+              cropSeed % 1000,
+              stats.totalCrops,
+              stats.pendingCrops,
+              stats.approvedCrops,
+              stats.rejectedCrops,
+              stats.totalOrders,
+              activityScore,
+              (cropSeed + activityScore) % 500,
+              stats.recentCrops.length,
+              stats.recentOrders.length,
+              (stats.orderStatusBreakdown['pending'] || 0) + (stats.orderStatusBreakdown['confirmed'] || 0),
+              1,
+            ],
+          },
+        };
+      })
+      .sort((a, b) => b.activityScore - a.activityScore)
+      .slice(0, 3);
+  }, [stats]);
 
   useEffect(() => {
     fetchDashboardStats();
@@ -208,6 +295,44 @@ export const AdminDashboard: React.FC = () => {
           </Card>
         </motion.div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>AI market analytics</CardTitle>
+          <p className="text-sm text-gray-600">
+            Price and demand projections for the top 3 most active crops in current dashboard activity.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {topActiveCrops.length > 0 ? (
+            topActiveCrops.map((crop) => (
+              <div key={crop.id} className="rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-900">{crop.name}</h3>
+                  <Badge variant="info" size="sm">
+                    Activity score: {crop.activityScore}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <PredictionPanel
+                    mode="price"
+                    inputData={crop.priceInputData}
+                    cropName={crop.name}
+                  />
+                  <PredictionPanel
+                    mode="demand"
+                    inputData={crop.demandInputData}
+                    cropName={crop.name}
+                  />
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-sm text-gray-500">No crop activity available yet for analytics.</div>
+          )}
+        </CardContent>
+      </Card>
       
       {/* Action cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -85,3 +85,35 @@ export interface MarketplaceListing {
   status: 'active' | 'sold' | 'unavailable';
   listedDate: Date;
 }
+
+export interface PricePredictionInput {
+  cropName: string;
+  quantity: number;
+  unit: string;
+  harvestDate: string;
+  location: string;
+}
+
+export interface DemandPredictionInput {
+  cropName: string;
+  season: string;
+  region: string;
+  quantity: number;
+}
+
+export interface PredictionResult {
+  prediction: number;
+  confidence: number;
+  model: string;
+  timestamp: string;
+  unit?: string;
+  priceBreakdown?: {
+    minPrice: number;
+    maxPrice: number;
+    modalPrice: number;
+    unit: string;
+    minPricePerKg: number;
+    maxPricePerKg: number;
+    modalPricePerKg: number;
+  };
+}

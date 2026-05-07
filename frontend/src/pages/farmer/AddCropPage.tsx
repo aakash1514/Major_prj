@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { motion } from 'framer-motion';
@@ -8,8 +8,10 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
+import { PredictionPanel } from '../../components/common/PredictionPanel';
 import { useAuthStore } from '../../store/authStore';
 import { useCropsStore } from '../../store/cropsStore';
+import { usePredictionsStore } from '../../store/predictionsStore';
 import { Crop } from '../../types';
 
 interface AddCropFormData {
@@ -23,14 +25,72 @@ interface AddCropFormData {
   category: string;
 }
 
+const encodeTextToNumber = (value: string) => {
+  return value
+    .split('')
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+};
+
+const getWeekday = (date: Date) => {
+  const day = date.getDay();
+  return day === 0 ? 7 : day;
+};
+
 export const AddCropPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { addCrop } = useCropsStore();
+  const { fetchPricePrediction } = usePredictionsStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   
-  const { register, handleSubmit, formState: { errors } } = useForm<AddCropFormData>();
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<AddCropFormData>();
+
+  const watchedCropName = watch('name');
+  const watchedQuantity = watch('quantity');
+  const watchedHarvestDate = watch('harvest_date');
+
+  const pricePredictionInput = useMemo(() => {
+    const cropName = (watchedCropName || '').trim();
+    const quantity = Number(watchedQuantity);
+    const harvestDate = watchedHarvestDate ? new Date(watchedHarvestDate) : null;
+
+    if (!cropName || !harvestDate || Number.isNaN(harvestDate.getTime()) || quantity <= 0) {
+      return null;
+    }
+
+    const locationSeed = (user?.location || user?.name || 'default').toLowerCase();
+    const cropSeed = encodeTextToNumber(cropName.toLowerCase());
+    const locationCode = encodeTextToNumber(locationSeed);
+    const arrivalsTonnes = quantity / 1000;
+
+    return {
+      features: {
+        'State Name': locationCode % 36,
+        'District Name': locationCode % 64,
+        'Market Name': (locationCode + cropSeed) % 128,
+        'Variety': cropSeed % 200,
+        'Group': cropSeed % 40,
+        'Grade': (cropSeed % 3) + 1,
+        'Arrivals (Tonnes)': Number(arrivalsTonnes.toFixed(3)),
+        Month: harvestDate.getMonth() + 1,
+        Day: harvestDate.getDate(),
+        Weekday: getWeekday(harvestDate),
+      },
+    };
+  }, [watchedCropName, watchedHarvestDate, watchedQuantity, user?.location, user?.name]);
+
+  useEffect(() => {
+    if (!pricePredictionInput) return;
+
+    const timer = window.setTimeout(() => {
+      void fetchPricePrediction(pricePredictionInput);
+    }, 500);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [fetchPricePrediction, pricePredictionInput]);
   
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -185,17 +245,30 @@ export const AddCropPage: React.FC = () => {
                 fullWidth
               />
               
-              <Input
-                label="Expected Price (per unit)"
-                type="number"
-                placeholder="e.g., 250"
-                {...register('price', { 
-                  required: 'Price is required',
-                  min: { value: 1, message: 'Price must be greater than 0' }
-                })}
-                error={errors.price?.message}
-                fullWidth
-              />
+              <div className="space-y-3">
+                <Input
+                  label="Expected Price (per unit)"
+                  type="number"
+                  placeholder="e.g., 250"
+                  {...register('price', {
+                    required: 'Price is required',
+                    min: { value: 1, message: 'Price must be greater than 0' }
+                  })}
+                  error={errors.price?.message}
+                  fullWidth
+                />
+
+                {pricePredictionInput && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-green-800">AI suggested price</p>
+                    <PredictionPanel
+                      mode="price"
+                      inputData={pricePredictionInput}
+                      cropName={watchedCropName || 'Crop'}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
             
             <Textarea

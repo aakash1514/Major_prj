@@ -10,6 +10,7 @@ router.post('/login', usersController.login);
 
 // Protected routes
 router.get('/profile', authenticateToken, usersController.getUserProfile);
+router.get('/:id', authenticateToken, usersController.getUserById);
 router.put('/profile', authenticateToken, usersController.updateUserProfile);
 
 export default router;

@@ -130,6 +130,29 @@ export const getUserProfile = async (req, res) => {
   }
 };
 
+// Get user by ID (used by marketplace to show farmer details)
+export const getUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `SELECT id, name, email, role, location, contact_number, profile_image, created_at
+       FROM users
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Get user by id error:', err);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+};
+
 // Update user profile
 export const updateUserProfile = async (req, res) => {
   try {

@@ -22,6 +22,7 @@ import { BuyerProfile } from '../pages/buyer/BuyerProfile';
 import { MyOrders } from '../pages/buyer/MyOrders';
 import { MarketplacePage } from '../pages/marketplace/MarketplacePage';
 import { FarmerProfile } from '../pages/farmer/FarmerProfile';
+import { PredictionsPage } from '../pages/predictions/PredictionsPage';
 
 // Protected route component
 const ProtectedRoute: React.FC<{
@@ -64,6 +65,10 @@ const Routes: React.FC = () => {
         {
           path: "register",
           element: <RegisterPage /> // Using LoginPage for now
+        },
+        {
+          path: 'predictions',
+          element: <ProtectedRoute><PredictionsPage /></ProtectedRoute>
         },
         
         // Farmer routes

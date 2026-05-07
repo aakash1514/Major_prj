@@ -32,7 +32,9 @@ export const AppLayout: React.FC = () => {
     if (!user) return [];
     
     // Common links for all authenticated users
-    const commonLinks: Array<{to: string, label: string}> = [];
+    const commonLinks: Array<{to: string, label: string}> = [
+      { to: '/predictions', label: 'Predictions' },
+    ];
     
     // Role-specific links
     const roleSpecificLinks: Record<string, Array<{to: string, label: string}>> = {

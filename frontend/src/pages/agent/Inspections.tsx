@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Search, Filter, Eye, CheckCircle, X, Clock, 
@@ -13,10 +13,73 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Badge } from '../../components/ui/Badge';
 import { useCropsStore } from '../../store/cropsStore';
 import { useAuthStore } from '../../store/authStore';
+import { api } from '../../utils/api';
+
+interface DemandPredictionEntry {
+  value: number | null;
+  loading: boolean;
+  error?: string;
+}
+
+const encodeStringToNumber = (value: string) => {
+  return value
+    .split('')
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+};
+
+const getWeekday = (date: Date) => {
+  const day = date.getDay();
+  return day === 0 ? 7 : day;
+};
+
+const buildDemandInput = (crop: {
+  name: string;
+  quantity: number;
+  harvestDate: Date;
+  status: string;
+}) => {
+  const now = new Date();
+  const harvestDate = new Date(crop.harvestDate);
+  const cropSeed = encodeStringToNumber(crop.name.toLowerCase());
+
+  return {
+    features: [
+      now.getFullYear(),
+      now.getMonth() + 1,
+      now.getDate(),
+      getWeekday(now),
+      cropSeed % 1000,
+      crop.quantity,
+      harvestDate.getMonth() + 1,
+      harvestDate.getDate(),
+      getWeekday(harvestDate),
+      crop.status === 'pending' ? 1 : 0,
+      crop.status === 'inspected' ? 1 : 0,
+      crop.status === 'approved' ? 1 : 0,
+      Math.max(1, Math.round(crop.quantity / 5)),
+      Math.max(1, Math.round(crop.quantity / 10)),
+      Math.max(1, Math.round(crop.quantity / 20)),
+      1,
+    ],
+  };
+};
+
+const getDemandLevel = (value: number) => {
+  if (value >= 10000000) {
+    return { label: 'High', variant: 'success' as const };
+  }
+
+  if (value >= 2000000) {
+    return { label: 'Medium', variant: 'warning' as const };
+  }
+
+  return { label: 'Low', variant: 'info' as const };
+};
 
 export const Inspections: React.FC = () => {
   const { user } = useAuthStore();
   const { crops, updateCropStatus, addQualityReport } = useCropsStore();
+  const [demandPredictions, setDemandPredictions] = useState<Record<string, DemandPredictionEntry>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
@@ -30,9 +93,63 @@ export const Inspections: React.FC = () => {
   });
 
   // Filter crops that need inspection or have been inspected
-  const inspectionCrops = crops.filter(crop => 
-    crop.status === 'pending' || crop.status === 'inspected' || crop.status === 'approved' || crop.status === 'rejected'
+  const inspectionCrops = useMemo(
+    () => crops.filter((crop) =>
+      crop.status === 'pending' || crop.status === 'inspected' || crop.status === 'approved' || crop.status === 'rejected'
+    ),
+    [crops]
   );
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const fetchDemandPredictions = async () => {
+      if (!inspectionCrops.length) {
+        setDemandPredictions({});
+        return;
+      }
+
+      setDemandPredictions(
+        Object.fromEntries(
+          inspectionCrops.map((crop) => [
+            crop.id,
+            { value: null, loading: true } as DemandPredictionEntry,
+          ])
+        )
+      );
+
+      const results = await Promise.all(
+        inspectionCrops.map(async (crop) => {
+          try {
+            const response = await api.post('/predictions/demand', buildDemandInput(crop)) as {
+              prediction: number;
+            };
+
+            return [crop.id, { value: response.prediction, loading: false } as DemandPredictionEntry] as const;
+          } catch (error) {
+            return [
+              crop.id,
+              {
+                value: null,
+                loading: false,
+                error: error instanceof Error ? error.message : 'Demand unavailable',
+              } as DemandPredictionEntry,
+            ] as const;
+          }
+        })
+      );
+
+      if (!isCancelled) {
+        setDemandPredictions(Object.fromEntries(results));
+      }
+    };
+
+    void fetchDemandPredictions();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [inspectionCrops]);
 
   // Apply filters
   const filteredCrops = inspectionCrops.filter(crop => {
@@ -110,6 +227,21 @@ export const Inspections: React.FC = () => {
   };
 
   const selectedCropData = selectedCrop ? crops.find(c => c.id === selectedCrop) : null;
+
+  const renderDemandPriorityBadge = (cropId: string) => {
+    const prediction = demandPredictions[cropId];
+
+    if (!prediction || prediction.loading) {
+      return <Badge variant="outline" size="sm">Demand: Checking...</Badge>;
+    }
+
+    if (prediction.value === null || prediction.error) {
+      return <Badge variant="outline" size="sm">Demand: Unavailable</Badge>;
+    }
+
+    const level = getDemandLevel(prediction.value);
+    return <Badge variant={level.variant} size="sm">Demand: {level.label}</Badge>;
+  };
 
   return (
     <div className="space-y-6">
@@ -277,6 +409,11 @@ export const Inspections: React.FC = () => {
                             <p className="font-medium">{crop.farmerId.substring(0, 8)}</p>
                           </div>
                         </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center gap-2 text-sm">
+                        <span className="text-gray-500">Predicted demand level:</span>
+                        {renderDemandPriorityBadge(crop.id)}
                       </div>
                     </div>
 

@@ -1,0 +1,7 @@
+flask
+flask-cors
+joblib>=1.4,<2
+numpy>=1.24,<3
+pandas>=2.0,<3
+scikit-learn==1.4.2
+xgboost==2.0.3

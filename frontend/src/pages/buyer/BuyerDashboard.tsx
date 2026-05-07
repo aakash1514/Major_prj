@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ShoppingCart, Box, TrendingUp, Clock, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { CropCard } from '../../components/common/CropCard';
+import { PredictionPanel } from '../../components/common/PredictionPanel';
 import { useAuthStore } from '../../store/authStore';
 
 interface DashboardStats {
@@ -31,11 +32,60 @@ interface DashboardStats {
   }>;
 }
 
+const encodeStringToNumber = (value: string) => {
+  return value
+    .split('')
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+};
+
+const getWeekday = (date: Date) => {
+  const day = date.getDay();
+  return day === 0 ? 7 : day;
+};
+
 export const BuyerDashboard: React.FC = () => {
   const { user } = useAuthStore();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const priceTrendCropTypes = useMemo(() => {
+    if (!stats) return [] as string[];
+
+    const orderedTypes = stats.recentOrders
+      .map((order) => (order.crop_name || '').trim())
+      .filter(Boolean);
+    const featuredTypes = stats.featuredCrops
+      .map((crop) => (crop.name || '').trim())
+      .filter(Boolean);
+
+    return Array.from(new Set([...orderedTypes, ...featuredTypes]));
+  }, [stats]);
+
+  const primaryPriceTrendCrop = priceTrendCropTypes[0] || 'Mixed Crops';
+
+  const priceTrendInputData = useMemo(() => {
+    const now = new Date();
+    const cropSeed = encodeStringToNumber(primaryPriceTrendCrop.toLowerCase());
+    const buyerSeed = encodeStringToNumber((user?.name || 'buyer').toLowerCase());
+    const marketSeed = encodeStringToNumber('marketplace');
+    const arrivals = stats ? Math.max(0.1, Number((stats.availableCrops / 10).toFixed(2))) : 0.1;
+
+    return {
+      features: {
+        'State Name': buyerSeed % 36,
+        'District Name': buyerSeed % 64,
+        'Market Name': marketSeed % 128,
+        Variety: cropSeed % 200,
+        Group: (cropSeed + marketSeed) % 40,
+        Grade: ((stats?.pendingDelivery || 0) % 3) + 1,
+        'Arrivals (Tonnes)': arrivals,
+        Month: now.getMonth() + 1,
+        Day: now.getDate(),
+        Weekday: getWeekday(now),
+      },
+    };
+  }, [primaryPriceTrendCrop, stats, user?.name]);
 
   useEffect(() => {
     fetchDashboardStats();
@@ -210,6 +260,22 @@ export const BuyerDashboard: React.FC = () => {
           </Card>
         </motion.div>
       </div>
+
+      <Card className="border border-purple-100">
+        <CardHeader>
+          <CardTitle>Price trends</CardTitle>
+          <p className="text-sm text-gray-600">
+            Based on your recent ordered and viewed crop types: {priceTrendCropTypes.slice(0, 3).join(', ') || 'No recent crop activity'}
+          </p>
+        </CardHeader>
+        <CardContent>
+          <PredictionPanel
+            mode="price"
+            inputData={priceTrendInputData}
+            cropName={primaryPriceTrendCrop}
+          />
+        </CardContent>
+      </Card>
       
       {/* Featured crops */}
       <div>

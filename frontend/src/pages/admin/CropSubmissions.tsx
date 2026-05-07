@@ -5,11 +5,55 @@ import {
   Calendar, Package, User
 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
+import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useCropsStore } from '../../store/cropsStore';
+import { api } from '../../utils/api';
+
+interface PricePredictionResult {
+  prediction: number | null;
+  confidence: number | null;
+  loading: boolean;
+  error?: string;
+}
+
+const encodeStringToNumber = (value: string) => {
+  return value
+    .split('')
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+};
+
+const getWeekday = (date: Date) => {
+  const day = date.getDay();
+  return day === 0 ? 7 : day;
+};
+
+const buildPricePredictionInput = (crop: {
+  name: string;
+  quantity: number;
+  harvestDate: Date;
+}) => {
+  const cropSeed = encodeStringToNumber(crop.name.toLowerCase());
+  const harvestDate = new Date(crop.harvestDate);
+
+  return {
+    features: {
+      'State Name': cropSeed % 36,
+      'District Name': cropSeed % 64,
+      'Market Name': cropSeed % 128,
+      'Variety': cropSeed % 200,
+      'Group': cropSeed % 40,
+      'Grade': (cropSeed % 3) + 1,
+      'Arrivals (Tonnes)': Number((crop.quantity / 1000).toFixed(3)),
+      'Month': Number.isNaN(harvestDate.getTime()) ? 1 : harvestDate.getMonth() + 1,
+      'Day': Number.isNaN(harvestDate.getTime()) ? 1 : harvestDate.getDate(),
+      'Weekday': Number.isNaN(harvestDate.getTime()) ? 1 : getWeekday(harvestDate),
+    },
+  };
+};
 
 export const CropSubmissions: React.FC = () => {
   const { crops, setCrops } = useCropsStore();
@@ -17,11 +61,107 @@ export const CropSubmissions: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [selectedCrop, setSelectedCrop] = useState<string | null>(null);
+  const [pricePredictions, setPricePredictions] = useState<Record<string, PricePredictionResult>>({});
 
   // Fetch crops on mount
   useEffect(() => {
     fetchAllCrops();
   }, []);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const fetchPricePredictions = async () => {
+      if (!crops.length) {
+        setPricePredictions({});
+        return;
+      }
+
+      const initialState = Object.fromEntries(
+        crops.map((crop) => [
+          crop.id,
+          {
+            prediction: null,
+            confidence: null,
+            loading: true,
+          } as PricePredictionResult,
+        ])
+      );
+
+      setPricePredictions(initialState);
+
+      const results = await Promise.all(
+        crops.map(async (crop) => {
+          try {
+            const response = await api.post('/predictions/price', buildPricePredictionInput(crop)) as {
+              prediction: number;
+              confidence: number;
+            };
+
+            return [
+              crop.id,
+              {
+                prediction: response.prediction,
+                confidence: response.confidence,
+                loading: false,
+              } as PricePredictionResult,
+            ] as const;
+          } catch (error) {
+            return [
+              crop.id,
+              {
+                prediction: null,
+                confidence: null,
+                loading: false,
+                error: error instanceof Error ? error.message : 'Prediction unavailable',
+              } as PricePredictionResult,
+            ] as const;
+          }
+        })
+      );
+
+      if (!isCancelled) {
+        setPricePredictions(Object.fromEntries(results));
+      }
+    };
+
+    void fetchPricePredictions();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [crops]);
+
+  const renderPricePredictionBadge = (crop: { id: string; price?: number }) => {
+    const predictionState = pricePredictions[crop.id];
+
+    if (!predictionState || predictionState.loading) {
+      return (
+        <Badge variant="outline" size="sm">
+          AI checking...
+        </Badge>
+      );
+    }
+
+    if (predictionState.prediction === null || predictionState.error) {
+      return (
+        <Badge variant="outline" size="sm">
+          AI unavailable
+        </Badge>
+      );
+    }
+
+    const listedPrice = Number(crop.price || 0);
+    const prediction = predictionState.prediction;
+    const diffRatio = listedPrice > 0 ? Math.abs((listedPrice - prediction) / listedPrice) : 0;
+    const variant = diffRatio <= 0.1 ? 'success' : diffRatio <= 0.25 ? 'warning' : 'danger';
+
+    return (
+      <Badge variant={variant} size="sm">
+        AI est: ${prediction.toFixed(2)}
+      </Badge>
+    );
+  };
 
   const fetchAllCrops = async () => {
     try {
@@ -351,7 +491,10 @@ export const CropSubmissions: React.FC = () => {
                             <span className="text-gray-400 mr-2">$</span>
                             <div>
                               <p className="text-gray-500">Price</p>
-                              <p className="font-medium">${crop.price} / {crop.unit}</p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium">${crop.price} / {crop.unit}</p>
+                                {renderPricePredictionBadge(crop)}
+                              </div>
                             </div>
                           </div>
                         )}

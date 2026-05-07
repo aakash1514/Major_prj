@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Package, Clock, CheckCircle, Truck, DollarSign, 
-  Eye, X, Calendar, User
+  Eye, X, Calendar, User, CreditCard
 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -11,6 +11,7 @@ import { Select } from '../../components/ui/Select';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore } from '../../store/authStore';
+import { createOrderPayment, verifyOrderPayment } from '../../api/payment';
 
 interface BuyerOrder {
   id: string;
@@ -35,6 +36,55 @@ interface CropInfo {
   farmer_id?: string;
 }
 
+interface RazorpaySuccessResponse {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
+interface RazorpayCheckoutOptions {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  handler: (response: RazorpaySuccessResponse) => void;
+  prefill?: {
+    name?: string;
+    email?: string;
+  };
+  theme?: {
+    color?: string;
+  };
+  modal?: {
+    ondismiss?: () => void;
+  };
+}
+
+interface RazorpayFailurePayload {
+  error?: {
+    code?: string;
+    description?: string;
+    reason?: string;
+    source?: string;
+    step?: string;
+    metadata?: {
+      order_id?: string;
+      payment_id?: string;
+    };
+  };
+}
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayCheckoutOptions) => {
+      open: () => void;
+      on: (event: 'payment.failed', handler: (payload: RazorpayFailurePayload) => void) => void;
+    };
+  }
+}
+
 export const MyOrders: React.FC = () => {
   const { user } = useAuthStore();
   const [buyerOrders, setBuyerOrders] = useState<BuyerOrder[]>([]);
@@ -42,6 +92,10 @@ export const MyOrders: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
+  const [isPaying, setIsPaying] = useState<string | null>(null);
+
+  const razorpayKey =
+    import.meta.env.VITE_RAZORPAY_KEY || 'rzp_test_Reli2JwWcxfYe5';
 
   // Fetch orders on mount
   useEffect(() => {
@@ -92,6 +146,98 @@ export const MyOrders: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching crop info:', error);
+    }
+  };
+
+  const loadRazorpayScript = async (): Promise<boolean> => {
+    if (window.Razorpay) {
+      return true;
+    }
+
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handlePayNow = async (order: BuyerOrder) => {
+    if (order.payment_status === 'fully-paid') {
+      return;
+    }
+
+    setIsPaying(order.id);
+
+    try {
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded || !window.Razorpay) {
+        throw new Error('Unable to load Razorpay checkout script');
+      }
+
+      const createRes = await createOrderPayment(order.id);
+      const paymentOrder = createRes.paymentOrder;
+
+      const checkoutKey = paymentOrder.keyId || razorpayKey;
+
+      const options: RazorpayCheckoutOptions = {
+        key: checkoutKey,
+        amount: paymentOrder.amount,
+        currency: paymentOrder.currency,
+        name: 'AgriFlow',
+        description: `Payment for Order #${order.id.substring(0, 8)}`,
+        order_id: paymentOrder.id,
+        handler: async (response: RazorpaySuccessResponse) => {
+          try {
+            await verifyOrderPayment(order.id, {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            });
+
+            alert('Payment successful and verified.');
+            await fetchBuyerOrders();
+          } catch (verifyErr) {
+            const message = verifyErr instanceof Error
+              ? verifyErr.message
+              : 'Payment verification failed';
+            alert(message);
+          } finally {
+            setIsPaying(null);
+          }
+        },
+        prefill: {
+          name: user?.name || '',
+          email: user?.email || ''
+        },
+        theme: {
+          color: '#ca8a04'
+        },
+        modal: {
+          ondismiss: () => {
+            setIsPaying(null);
+          }
+        }
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.on('payment.failed', (failurePayload: RazorpayFailurePayload) => {
+        const failureError = failurePayload?.error;
+        const message = failureError?.description
+          || failureError?.reason
+          || 'Payment failed at Razorpay checkout';
+
+        console.error('[Razorpay payment.failed]', failurePayload);
+        alert(message);
+        setIsPaying(null);
+      });
+      razorpay.open();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to initiate payment';
+      alert(message);
+      setIsPaying(null);
     }
   };
 
@@ -323,6 +469,18 @@ export const MyOrders: React.FC = () => {
 
                       {/* Actions */}
                       <div className="flex flex-row sm:flex-col gap-2 lg:w-32">
+                        {order.payment_status !== 'fully-paid' && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            icon={<CreditCard size={14} />}
+                            onClick={() => handlePayNow(order)}
+                            disabled={isPaying === order.id}
+                            fullWidth
+                          >
+                            {isPaying === order.id ? 'Processing...' : 'Pay Now'}
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"

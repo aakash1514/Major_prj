@@ -19,6 +19,8 @@ import { Button } from '../../components/ui/Button';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { CropCard } from '../../components/common/CropCard';
 import { useAuthStore } from '../../store/authStore';
+import { usePredictionsStore } from '../../store/predictionsStore';
+import { api } from '../../utils/api';
 
 // Register ChartJS components
 ChartJS.register(
@@ -62,15 +64,73 @@ interface DashboardStats {
   }>;
 }
 
+interface FarmerProfileData {
+  crop_preference?: string;
+  farm_size?: string;
+  location?: string;
+}
+
+const encodeStringToNumber = (value: string) => {
+  return value
+    .split('')
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+};
+
+const buildDemandInputData = (primaryCropType: string, profile: FarmerProfileData | null) => {
+  const now = new Date();
+  const farmSize = Number(profile?.farm_size || 0);
+  const locationSeed = profile?.location || '';
+  const cropSeed = encodeStringToNumber(primaryCropType.toLowerCase());
+  const locationCode = encodeStringToNumber(locationSeed.toLowerCase());
+
+  return {
+    features: [
+      now.getFullYear(),
+      now.getMonth() + 1,
+      now.getDate(),
+      now.getDay() || 7,
+      cropSeed % 1000,
+      locationCode % 500,
+      Number.isFinite(farmSize) ? farmSize : 0,
+      cropSeed % 300,
+      locationCode % 200,
+      (cropSeed + locationCode) % 700,
+      now.getHours(),
+      now.getMinutes(),
+      Math.max(1, Math.round((Number.isFinite(farmSize) ? farmSize : 1) * 10)),
+      Math.max(1, Math.round((cropSeed % 50) + 1)),
+      Math.max(1, Math.round((locationCode % 25) + 1)),
+      1,
+    ],
+  };
+};
+
 export const FarmerDashboard: React.FC = () => {
   const { user } = useAuthStore();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [farmerProfile, setFarmerProfile] = useState<FarmerProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const {
+    lastDemandPrediction,
+    isDemandLoading,
+    demandError,
+    fetchDemandPrediction,
+  } = usePredictionsStore();
+
+  const primaryCropType = farmerProfile?.crop_preference || stats?.recentCrops?.[0]?.name || '';
 
   useEffect(() => {
-    fetchDashboardStats();
+    void fetchDashboardStats();
+    void fetchFarmerProfile();
   }, []);
+
+  useEffect(() => {
+    if (!primaryCropType) return;
+
+    const demandInputData = buildDemandInputData(primaryCropType, farmerProfile);
+    void fetchDemandPrediction(demandInputData);
+  }, [farmerProfile, fetchDemandPrediction, primaryCropType]);
 
   const fetchDashboardStats = async () => {
     try {
@@ -103,6 +163,15 @@ export const FarmerDashboard: React.FC = () => {
       setError(err instanceof Error ? err.message : 'Failed to load dashboard statistics');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFarmerProfile = async () => {
+    try {
+      const profile = await api.get('/farmer/profile');
+      setFarmerProfile(profile as FarmerProfileData);
+    } catch (err) {
+      console.error('Error fetching farmer profile for demand prediction:', err);
     }
   };
 
@@ -184,6 +253,43 @@ export const FarmerDashboard: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      <Card className="border border-blue-100">
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium text-blue-700">Demand outlook</p>
+            <p className="text-sm text-gray-600">
+              Primary crop: <span className="font-semibold text-gray-800">{primaryCropType || 'Not set'}</span>
+            </p>
+
+            {isDemandLoading && (
+              <div className="flex items-center gap-2 text-sm text-blue-700">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                <span>Fetching latest demand prediction...</span>
+              </div>
+            )}
+
+            {!isDemandLoading && demandError && (
+              <p className="text-sm text-red-700">{demandError}</p>
+            )}
+
+            {!isDemandLoading && !demandError && lastDemandPrediction && (
+              <div>
+                <p className="text-2xl font-bold text-blue-900">
+                  {lastDemandPrediction.prediction.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Confidence: {(lastDemandPrediction.confidence * 100).toFixed(0)}%
+                </p>
+              </div>
+            )}
+
+            {!isDemandLoading && !demandError && !lastDemandPrediction && (
+              <p className="text-sm text-gray-500">Demand prediction will appear once profile data is ready.</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
       
       {/* Stats cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

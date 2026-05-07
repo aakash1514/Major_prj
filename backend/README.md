@@ -104,6 +104,30 @@ npm start
 
 The server should start on `http://localhost:5000`
 
+## Running with ML predictions
+
+For prediction-enabled development, start services in this order:
+
+1. Start the ML service first:
+
+```bash
+cd ml_service && python app.py
+```
+
+2. Start the backend:
+
+```bash
+npm run dev
+```
+
+3. Start the frontend:
+
+```bash
+npm run dev
+```
+
+Prediction features degrade gracefully if the ML service is not running. Core pages continue to work, and prediction panels will show `service unavailable`.
+
 ## API Endpoints
 
 ### Authentication (`/api/users`)

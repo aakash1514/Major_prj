@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -7,6 +7,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { PredictionPanel } from '../../components/common/PredictionPanel';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useAuthStore } from '../../store/authStore';
 
@@ -23,9 +24,57 @@ interface Delivery {
   created_at?: string;
 }
 
+interface InspectionAssignment {
+  id: string;
+  name: string;
+  quantity: number;
+  harvest_date?: string;
+  status: string;
+}
+
+const encodeStringToNumber = (value: string) => {
+  return value
+    .split('')
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+};
+
+const getWeekday = (date: Date) => {
+  const day = date.getDay();
+  return day === 0 ? 7 : day;
+};
+
+const buildDemandInput = (crop: InspectionAssignment) => {
+  const now = new Date();
+  const harvestDate = crop.harvest_date ? new Date(crop.harvest_date) : now;
+  const cropSeed = encodeStringToNumber(crop.name.toLowerCase());
+
+  return {
+    features: [
+      now.getFullYear(),
+      now.getMonth() + 1,
+      now.getDate(),
+      getWeekday(now),
+      cropSeed % 1000,
+      crop.quantity,
+      harvestDate.getMonth() + 1,
+      harvestDate.getDate(),
+      getWeekday(harvestDate),
+      crop.status === 'pending' ? 1 : 0,
+      cropSeed % 500,
+      cropSeed % 250,
+      Math.max(1, Math.round(crop.quantity / 5)),
+      Math.max(1, Math.round(crop.quantity / 10)),
+      Math.max(1, Math.round(crop.quantity / 20)),
+      1,
+    ],
+  };
+};
+
 export const AgentDashboard: React.FC = () => {
   const { user } = useAuthStore();
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  const [inspectionAssignments, setInspectionAssignments] = useState<InspectionAssignment[]>([]);
+  const [selectedInspectionCropId, setSelectedInspectionCropId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,9 +100,31 @@ export const AgentDashboard: React.FC = () => {
   // Get recent activity from all deliveries
   const recentActivity = deliveries.slice(0, 3).reverse();
 
+  const selectedInspectionCrop = useMemo(
+    () => inspectionAssignments.find((crop) => crop.id === selectedInspectionCropId) || inspectionAssignments[0],
+    [inspectionAssignments, selectedInspectionCropId]
+  );
+
+  const demandContextInput = useMemo(
+    () => (selectedInspectionCrop ? buildDemandInput(selectedInspectionCrop) : null),
+    [selectedInspectionCrop]
+  );
+
   useEffect(() => {
-    fetchDeliveries();
+    void fetchDeliveries();
+    void fetchInspectionAssignments();
   }, []);
+
+  useEffect(() => {
+    if (!inspectionAssignments.length) {
+      setSelectedInspectionCropId(null);
+      return;
+    }
+
+    if (!selectedInspectionCropId) {
+      setSelectedInspectionCropId(inspectionAssignments[0].id);
+    }
+  }, [inspectionAssignments, selectedInspectionCropId]);
 
   const fetchDeliveries = async () => {
     try {
@@ -78,6 +149,35 @@ export const AgentDashboard: React.FC = () => {
       setError(err instanceof Error ? err.message : 'Failed to load deliveries');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchInspectionAssignments = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/agent/inspections/pending', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch inspection assignments: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const assignments = (Array.isArray(data) ? data : []).map((crop: any) => ({
+        id: String(crop.id),
+        name: String(crop.name || 'Unknown Crop'),
+        quantity: Number(crop.quantity) || 0,
+        harvest_date: crop.harvest_date,
+        status: String(crop.status || 'pending'),
+      }));
+
+      setInspectionAssignments(assignments);
+    } catch (err) {
+      console.error('Error fetching inspection assignments:', err);
     }
   };
   
@@ -182,6 +282,45 @@ export const AgentDashboard: React.FC = () => {
           </Card>
         </motion.div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Demand context</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {inspectionAssignments.length > 0 ? (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {inspectionAssignments.slice(0, 5).map((crop) => (
+                  <button
+                    type="button"
+                    key={crop.id}
+                    onClick={() => setSelectedInspectionCropId(crop.id)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      selectedInspectionCropId === crop.id
+                        ? 'bg-purple-100 border-purple-300 text-purple-800'
+                        : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    {crop.name}
+                  </button>
+                ))}
+              </div>
+
+              {selectedInspectionCrop && demandContextInput && (
+                <PredictionPanel
+                  mode="demand"
+                  inputData={demandContextInput}
+                  cropName={selectedInspectionCrop.name}
+                  className="shadow-none"
+                />
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">No inspection crops currently assigned.</p>
+          )}
+        </CardContent>
+      </Card>
       
       {/* Today's schedule */}
       <Card>
