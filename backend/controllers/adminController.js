@@ -235,3 +235,74 @@ export const getDashboardStats = async (req, res) => {
     });
   }
 };
+
+// Toggle user KYC status
+export const toggleUserKyc = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const result = await pool.query(
+      `UPDATE users
+       SET kyc = NOT COALESCE(kyc, false)
+       WHERE id = $1
+       RETURNING id, name, email, role, location, kyc, created_at`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      message: 'User KYC status updated successfully',
+      user: result.rows[0],
+    });
+  } catch (err) {
+    console.error('Toggle user KYC error:', err);
+    res.status(500).json({ error: 'Failed to toggle user KYC status' });
+  }
+};
+
+// Assign transporter to order
+export const assignTransporterToOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { transporterId } = req.body;
+
+    if (!transporterId) {
+      return res.status(400).json({ error: 'transporterId is required' });
+    }
+
+    const result = await pool.query(
+      `UPDATE orders
+       SET transporter_id = $1,
+           status = CASE
+             WHEN status IN ('pending', 'confirmed') THEN 'assigned'
+             ELSE status
+           END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [transporterId, orderId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const order = {
+      ...result.rows[0],
+      total_amount: parseFloat(result.rows[0].total_amount) || 0,
+      advance_amount: parseFloat(result.rows[0].advance_amount) || 0,
+      quantity: parseInt(result.rows[0].quantity, 10) || 0,
+    };
+
+    res.json({
+      message: 'Transporter assigned successfully',
+      order,
+    });
+  } catch (err) {
+    console.error('Assign transporter error:', err);
+    res.status(500).json({ error: 'Failed to assign transporter' });
+  }
+};

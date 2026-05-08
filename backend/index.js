@@ -30,17 +30,10 @@ console.log('[SERVER] Initializing with CORS support for dev ports...');
 
 // ─── MIDDLEWARE ──────────────────────────────────────────────────────────────
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://localhost:5176',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-    'http://127.0.0.1:5175',
-    'http://127.0.0.1:5176'
-  ],
-  credentials: true
+  origin: (origin, callback) => {
+    callback(null, true); // Allow all origins — safe for local dev
+  },
+  credentials: true,
 }));
 
 app.use(express.json({ limit: '50mb' }));
@@ -95,10 +88,9 @@ const startServer = async () => {
     await initDatabase();
     console.log('✓ Database initialized');
 
-    app.listen(PORT, () => {
-      console.log(`✓ Server running on http://localhost:${PORT}`);
-      console.log(`✓ Frontend: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`);
-      console.log(`✓ API docs: http://localhost:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`[SERVER] Running on http://0.0.0.0:${PORT}`);
+      console.log(`[SERVER] Accessible on local network at http://<your-ip>:${PORT}`);
     });
   } catch (err) {
     console.error('✗ Failed to start server:', err);

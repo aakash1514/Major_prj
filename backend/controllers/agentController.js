@@ -1,5 +1,89 @@
 import pool from '../db.js';
 
+// Get agent profile with assignment stats
+export const getAgentProfile = async (req, res) => {
+  try {
+    const agentId = req.user.id;
+
+    const profileResult = await pool.query(
+      'SELECT id, name, email, location, contact_number, profile_image, created_at FROM users WHERE id = $1',
+      [agentId]
+    );
+
+    if (profileResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const [assignmentStats, reportStats] = await Promise.all([
+      pool.query(
+        `SELECT
+           COUNT(*)::int AS total_assignments,
+           COUNT(*) FILTER (WHERE status IN ('assigned', 'loaded', 'in-transit'))::int AS active_assignments,
+           COUNT(*) FILTER (WHERE status = 'delivered')::int AS completed_deliveries
+         FROM transport_logs
+         WHERE agent_id = $1`,
+        [agentId]
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS quality_reports
+         FROM quality_reports
+         WHERE agent_id = $1`,
+        [agentId]
+      ),
+    ]);
+
+    const profile = profileResult.rows[0];
+    const stats = assignmentStats.rows[0] || {};
+    const reports = reportStats.rows[0] || {};
+
+    res.json({
+      ...profile,
+      contact_number: profile.contact_number,
+      assignmentStats: {
+        totalAssignments: Number(stats.total_assignments || 0),
+        activeAssignments: Number(stats.active_assignments || 0),
+        completedDeliveries: Number(stats.completed_deliveries || 0),
+        qualityReports: Number(reports.quality_reports || 0),
+      },
+    });
+  } catch (err) {
+    console.error('Get agent profile error:', err);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+};
+
+// Update agent profile
+export const updateAgentProfile = async (req, res) => {
+  try {
+    const agentId = req.user.id;
+    const { name, email, location, contactNumber } = req.body;
+
+    const result = await pool.query(
+      `UPDATE users
+       SET name = COALESCE(NULLIF($1, ''), name),
+           email = COALESCE(NULLIF($2, ''), email),
+           location = COALESCE(NULLIF($3, ''), location),
+           contact_number = COALESCE(NULLIF($4, ''), contact_number),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5
+       RETURNING id, name, email, location, contact_number, profile_image, created_at`,
+      [name, email, location, contactNumber, agentId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    res.json({
+      message: 'Profile updated successfully',
+      agent: result.rows[0],
+    });
+  } catch (err) {
+    console.error('Update agent profile error:', err);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+};
+
 // Create quality report
 export const createQualityReport = async (req, res) => {
   try {

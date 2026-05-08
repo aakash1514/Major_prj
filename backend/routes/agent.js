@@ -4,6 +4,10 @@ import { authenticateToken, requireRole } from '../middleware/authMiddleware.js'
 
 const router = express.Router();
 
+// Agent profile
+router.get('/profile', authenticateToken, requireRole('agent'), agentController.getAgentProfile);
+router.put('/profile', authenticateToken, requireRole('agent'), agentController.updateAgentProfile);
+
 // Quality inspection routes
 router.post('/inspections', authenticateToken, requireRole('agent'), agentController.createQualityReport);
 router.get('/inspections/pending', authenticateToken, requireRole('agent'), agentController.getPendingInspections);
