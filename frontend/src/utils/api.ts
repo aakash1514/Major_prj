@@ -1,8 +1,7 @@
 // Remove unused import
 // import { useAuthStore } from '../store/authStore';
 
-// Use direct API URL to avoid TypeScript issues
-const API_URL = 'http://localhost:5000/api';
+import { API_URL } from '../../../shared/apiConfig';
 
 /**
  * Makes authenticated API requests to the backend

@@ -18,6 +18,7 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
+import { API_BASE_URL, API_URL } from '../../shared/apiConfig';
 
 // ─── NETWORK CONFIG ─────────────────────────────────────────────────────────
 // For Expo Go on a physical device: set this to your machine's local IP.
@@ -28,8 +29,7 @@ import * as SecureStore from 'expo-secure-store';
 // For iOS simulator:    use 'localhost'
 // For physical device:  use '192.168.X.X'  ← put your local IP here
 
-const API_URL = 'https://tasha-unglutted-anisha.ngrok-free.dev/api';
-export const API_BASE_URL = API_URL.replace(/\/api\/?$/, '');
+export { API_BASE_URL };
 
 /**
  * Makes authenticated API requests to the backend
