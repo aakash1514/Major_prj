@@ -116,7 +116,7 @@ export default function FarmerDashboardScreen() {
   };
 
   const handleCropPress = (cropId: string) => {
-    router.push('/(farmer)/my-crops');
+    router.push(`/(farmer)/crops/${cropId}`);
   };
 
   if (loading) {
@@ -216,7 +216,7 @@ export default function FarmerDashboardScreen() {
                 </View>
               )}
               showsHorizontalScrollIndicator={false}
-              scrollEnabled={false}
+              scrollEnabled={true}
             />
           </View>
         )}

@@ -7,7 +7,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { api } from '../../utils/api';
 import ScreenHeader from '../../components/common/ScreenHeader';
@@ -42,7 +42,7 @@ const getPaymentStatusVariant = (paymentStatus: string): 'success' | 'warning' |
   }
 };
 
-const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
+const OrderCard: React.FC<{ order: Order; onPress?: () => void }> = ({ order, onPress }) => {
   const createdDate = new Date(order.createdAt);
   const dateStr = createdDate.toLocaleDateString('en-IN', {
     year: 'numeric',
@@ -50,7 +50,7 @@ const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
     day: 'numeric',
   });
 
-  return (
+  const content = (
     <Card style={styles.orderCard}>
       <CardContent style={styles.orderCardContent}>
         {/* Header Row: Crop name and Order Status */}
@@ -91,9 +91,20 @@ const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
       </CardContent>
     </Card>
   );
+
+  if (!onPress) {
+    return content;
+  }
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      {content}
+    </TouchableOpacity>
+  );
 };
 
 export default function FarmerOrdersScreen() {
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<OrderStatus>('all');
   const [loading, setLoading] = useState(true);
@@ -215,7 +226,12 @@ export default function FarmerOrdersScreen() {
         <FlatList
           data={filteredOrders}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <OrderCard order={item} />}
+          renderItem={({ item }) => (
+            <OrderCard
+              order={item}
+              onPress={() => router.push(`/(farmer)/orders/${item.id}`)}
+            />
+          )}
           contentContainerStyle={styles.flatListContent}
           showsVerticalScrollIndicator={false}
         />

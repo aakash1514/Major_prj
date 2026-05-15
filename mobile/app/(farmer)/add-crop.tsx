@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../utils/api';
 import ScreenHeader from '../../components/common/ScreenHeader';
@@ -58,12 +59,25 @@ const getWeekday = (date: Date) => {
   return day === 0 ? 7 : day;
 };
 
+const parseNumberInput = (value: string) => {
+  const normalized = value.replace(/[^0-9.]/g, '');
+  return Number.parseFloat(normalized);
+};
+
+const formatDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function AddCropScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const {
     control,
@@ -167,7 +181,9 @@ export default function AddCropScreen() {
         quantity: Number(data.quantity),
         unit: data.unit,
         harvest_date: data.harvest_date,
-        price: Number(data.price),
+        price: Number.isFinite(parseNumberInput(data.price))
+          ? parseNumberInput(data.price)
+          : 0,
         description: data.description,
         tac: data.category,
         images: selectedImages.map((img) => `data:image/jpeg;base64,${img.base64}`),
@@ -310,15 +326,39 @@ export default function AddCropScreen() {
                 name="harvest_date"
                 rules={{ required: 'Harvest date is required' }}
                 render={({ field: { value, onChange } }) => (
-                  <Input
-                    label="Harvest Date"
-                    placeholder="YYYY-MM-DD"
-                    value={value}
-                    onChangeText={onChange}
-                    error={errors.harvest_date?.message}
-                    editable={!isSubmitting}
-                    containerStyle={styles.inputContainer}
-                  />
+                  <>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => setShowDatePicker(true)}
+                      disabled={isSubmitting}
+                    >
+                      <View pointerEvents="none">
+                        <Input
+                          label="Harvest Date"
+                          placeholder="YYYY-MM-DD"
+                          value={value}
+                          error={errors.harvest_date?.message}
+                          editable={false}
+                          containerStyle={styles.inputContainer}
+                        />
+                      </View>
+                    </TouchableOpacity>
+                    {showDatePicker ? (
+                      <DateTimePicker
+                        value={value ? new Date(value) : new Date()}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={(event, selectedDate) => {
+                          if (event.type !== 'dismissed' && selectedDate) {
+                            onChange(formatDate(selectedDate));
+                          }
+                          if (Platform.OS !== 'ios') {
+                            setShowDatePicker(false);
+                          }
+                        }}
+                      />
+                    ) : null}
+                  </>
                 )}
               />
 
@@ -338,7 +378,7 @@ export default function AddCropScreen() {
                     label="Expected Price (per unit)"
                     placeholder="e.g., 250"
                     value={value}
-                    onChangeText={onChange}
+                    onChangeText={(text) => onChange(text.replace(/[^0-9.]/g, ''))}
                     error={errors.price?.message}
                     keyboardType="decimal-pad"
                     editable={!isSubmitting}

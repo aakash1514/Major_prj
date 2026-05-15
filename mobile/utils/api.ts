@@ -29,12 +29,27 @@ import * as SecureStore from 'expo-secure-store';
 // For physical device:  use '192.168.X.X'  ← put your local IP here
 
 const API_URL = 'https://tasha-unglutted-anisha.ngrok-free.dev/api';
+export const API_BASE_URL = API_URL.replace(/\/api\/?$/, '');
 
 /**
  * Makes authenticated API requests to the backend
  * Uses Expo SecureStore for JWT token storage
  */
 export const api = {
+  async parseResponse(response: Response) {
+    const contentType = response.headers.get('content-type') || '';
+    const rawText = await response.text();
+
+    if (contentType.includes('application/json')) {
+      try {
+        return rawText ? JSON.parse(rawText) : null;
+      } catch {
+        return { error: 'Invalid JSON response', raw: rawText };
+      }
+    }
+
+    return { error: 'Non-JSON response', raw: rawText };
+  },
   /**
    * GET request
    */
@@ -48,10 +63,14 @@ export const api = {
       },
     });
 
-    const responseData = await response.json();
+    const responseData = await this.parseResponse(response);
 
     if (!response.ok) {
-      const errorMessage = responseData.error || responseData.message || `API error: ${response.status}`;
+      const errorMessage =
+        responseData?.error ||
+        responseData?.message ||
+        responseData?.raw ||
+        `API error: ${response.status}`;
       throw new Error(errorMessage);
     }
 
@@ -73,10 +92,14 @@ export const api = {
       body: JSON.stringify(data),
     });
 
-    const responseData = await response.json();
+    const responseData = await this.parseResponse(response);
 
     if (!response.ok) {
-      const errorMessage = responseData.error || responseData.message || `API error: ${response.status}`;
+      const errorMessage =
+        responseData?.error ||
+        responseData?.message ||
+        responseData?.raw ||
+        `API error: ${response.status}`;
       throw new Error(errorMessage);
     }
 
@@ -98,10 +121,14 @@ export const api = {
       body: JSON.stringify(data),
     });
 
-    const responseData = await response.json();
+    const responseData = await this.parseResponse(response);
 
     if (!response.ok) {
-      const errorMessage = responseData.error || responseData.message || `API error: ${response.status}`;
+      const errorMessage =
+        responseData?.error ||
+        responseData?.message ||
+        responseData?.raw ||
+        `API error: ${response.status}`;
       throw new Error(errorMessage);
     }
 
@@ -122,10 +149,14 @@ export const api = {
       },
     });
 
-    const responseData = await response.json();
+    const responseData = await this.parseResponse(response);
 
     if (!response.ok) {
-      const errorMessage = responseData.error || responseData.message || `API error: ${response.status}`;
+      const errorMessage =
+        responseData?.error ||
+        responseData?.message ||
+        responseData?.raw ||
+        `API error: ${response.status}`;
       throw new Error(errorMessage);
     }
 

@@ -19,7 +19,7 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import { Colors } from '../../constants/Colors';
 import { api } from '../../utils/api';
 
-type CropStatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
+type CropStatusFilter = 'all' | 'pending' | 'approved' | 'listed' | 'sold' | 'rejected';
 
 interface SubmissionCrop {
   id: string;
@@ -46,6 +46,8 @@ const STATUS_TABS: Array<{ label: string; value: CropStatusFilter }> = [
   { label: 'All', value: 'all' },
   { label: 'Pending', value: 'pending' },
   { label: 'Approved', value: 'approved' },
+  { label: 'Listed', value: 'listed' },
+  { label: 'Sold', value: 'sold' },
   { label: 'Rejected', value: 'rejected' },
 ];
 
@@ -94,7 +96,7 @@ const normalizeCrops = (raw: any[]): SubmissionCrop[] => {
     harvestDate: String(crop.harvest_date ?? crop.harvestDate ?? new Date().toISOString()),
     images: Array.isArray(crop.images) ? crop.images : [],
     description: crop.description || '',
-    status: String(crop.status ?? 'pending'),
+    status: String(crop.status ?? 'pending').toLowerCase(),
     price: Number(crop.price ?? 0),
     tac: crop.tac || '',
   }));
@@ -255,6 +257,29 @@ export default function CropSubmissionsScreen() {
     }
   };
 
+  const listOnMarketplace = async (crop: SubmissionCrop) => {
+    setActionLoading(true);
+    try {
+      const payload = {
+        price: Number(crop.price || 0),
+        availability: 'available',
+      };
+
+      try {
+        await api.put(`/admin/crops/${crop.id}/list`, payload);
+      } catch {
+        await api.post(`/admin/crops/${crop.id}/list`, payload);
+      }
+
+      setSelectedCrop(null);
+      await fetchCrops();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to list crop');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) {
     return <LoadingSpinner message="Loading submissions..." />;
   }
@@ -375,30 +400,49 @@ export default function CropSubmissionsScreen() {
                 </Text>
               </View>
 
-              <View style={styles.actionRow}>
-                <Button
-                  title="Reject"
-                  onPress={() => {
-                    void runCropAction(selectedCrop.id, 'reject', { reason: 'Rejected by admin' });
-                  }}
-                  variant="danger"
-                  disabled={actionLoading}
-                  loading={actionLoading}
-                  style={styles.actionBtn}
-                />
-                <Button
-                  title="Approve"
-                  onPress={() => {
-                    void runCropAction(selectedCrop.id, 'approve', {
-                      price: Number(selectedCrop.price || 0),
-                    });
-                  }}
-                  variant="primary"
-                  disabled={actionLoading}
-                  loading={actionLoading}
-                  style={styles.actionBtn}
-                />
-              </View>
+              {selectedCrop.status === 'pending' ? (
+                <View style={styles.actionRow}>
+                  <Button
+                    title="Reject"
+                    onPress={() => {
+                      void runCropAction(selectedCrop.id, 'reject', {
+                        reason: 'Rejected by admin',
+                      });
+                    }}
+                    variant="danger"
+                    disabled={actionLoading}
+                    loading={actionLoading}
+                    style={styles.actionBtn}
+                  />
+                  <Button
+                    title="Approve"
+                    onPress={() => {
+                      void runCropAction(selectedCrop.id, 'approve', {
+                        price: Number(selectedCrop.price || 0),
+                      });
+                    }}
+                    variant="primary"
+                    disabled={actionLoading}
+                    loading={actionLoading}
+                    style={styles.actionBtn}
+                  />
+                </View>
+              ) : null}
+
+              {selectedCrop.status === 'approved' ? (
+                <View style={styles.actionRow}>
+                  <Button
+                    title="List on Marketplace"
+                    onPress={() => {
+                      void listOnMarketplace(selectedCrop);
+                    }}
+                    variant="primary"
+                    disabled={actionLoading}
+                    loading={actionLoading}
+                    style={styles.actionBtn}
+                  />
+                </View>
+              ) : null}
             </View>
           ) : null}
         </View>

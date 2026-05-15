@@ -57,6 +57,18 @@ export default function FarmerLayout() {
         }}
       />
       <Tabs.Screen
+        name="crops/[id]"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="orders/[id]"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',

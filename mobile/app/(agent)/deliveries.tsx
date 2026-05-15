@@ -2,6 +2,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   FlatList,
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -9,16 +10,19 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
+import Input from '../../components/ui/Input';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { Colors } from '../../constants/Colors';
 import { api } from '../../utils/api';
 
-type DeliveryStatus = 'assigned' | 'loaded' | 'in-transit' | 'delivered';
+type DeliveryStatus = 'assigned' | 'in-transit' | 'delivered';
 
 interface DeliveryItem {
   id: string;
@@ -31,9 +35,13 @@ interface DeliveryItem {
   transporterId?: string;
 }
 
+interface DeliveryProof {
+  uri: string;
+  base64: string;
+}
+
 const STATUS_OPTIONS: Array<{ label: string; value: DeliveryStatus }> = [
   { label: 'Assigned', value: 'assigned' },
-  { label: 'Loaded', value: 'loaded' },
   { label: 'In-Transit', value: 'in-transit' },
   { label: 'Delivered', value: 'delivered' },
 ];
@@ -56,7 +64,7 @@ const statusVariant = (
 ): 'success' | 'warning' | 'danger' | 'info' | 'default' => {
   const value = status.toLowerCase();
   if (value === 'delivered') return 'success';
-  if (value === 'loaded' || value === 'assigned') return 'warning';
+  if (value === 'assigned') return 'warning';
   if (value === 'in-transit') return 'info';
   return 'default';
 };
@@ -68,12 +76,14 @@ export default function DeliveriesScreen() {
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryItem | null>(null);
   const [newStatus, setNewStatus] = useState<DeliveryStatus>('assigned');
   const [saving, setSaving] = useState(false);
+  const [deliveryNotes, setDeliveryNotes] = useState('');
+  const [deliveryProof, setDeliveryProof] = useState<DeliveryProof | null>(null);
 
   const fetchDeliveries = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = (await api.get('/agent/deliveries')) as any[];
+      const data = (await api.get('/agent/my-deliveries')) as any[];
       setDeliveries(normalizeDeliveries(Array.isArray(data) ? data : []));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch deliveries');
@@ -98,22 +108,42 @@ export default function DeliveriesScreen() {
       setSaving(true);
       setError(null);
 
-      try {
-        await api.put(`/agent/deliveries/${selectedDelivery.id}/status`, {
-          status: newStatus,
-        });
-      } catch {
-        await api.put(`/agent/deliveries/${selectedDelivery.id}`, {
-          status: newStatus,
-        });
-      }
+      await api.put(`/orders/${selectedDelivery.id}/status`, {
+        status: newStatus,
+        deliveryNotes: deliveryNotes.trim() || undefined,
+        deliveryProof: deliveryProof ? `data:image/jpeg;base64,${deliveryProof.base64}` : undefined,
+      });
 
       setSelectedDelivery(null);
+      setDeliveryNotes('');
+      setDeliveryProof(null);
       await fetchDeliveries();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update delivery status');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const pickProof = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets?.[0]) {
+        const asset = result.assets[0];
+        const base64 =
+          asset.base64 ||
+          (await FileSystem.readAsStringAsync(asset.uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          }));
+        setDeliveryProof({ uri: asset.uri, base64 });
+      }
+    } catch (err) {
+      setError('Failed to select proof image');
     }
   };
 
@@ -158,17 +188,19 @@ export default function DeliveriesScreen() {
                 Amount: ₹{item.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
               </Text>
 
-              <View style={styles.actionRow}>
-                <Button
-                  title="Update Status"
-                  onPress={() => {
-                    setSelectedDelivery(item);
-                    setNewStatus(item.status as DeliveryStatus);
-                  }}
-                  variant="primary"
-                  size="sm"
-                />
-              </View>
+              {item.status.toLowerCase() !== 'delivered' ? (
+                <View style={styles.actionRow}>
+                  <Button
+                    title="Update Status"
+                    onPress={() => {
+                      setSelectedDelivery(item);
+                      setNewStatus(item.status as DeliveryStatus);
+                    }}
+                    variant="primary"
+                    size="sm"
+                  />
+                </View>
+              ) : null}
             </CardContent>
           </Card>
         )}
@@ -188,6 +220,23 @@ export default function DeliveriesScreen() {
               <Text style={styles.modalTitle}>Update Status</Text>
               <Text style={styles.modalMeta}>Crop: {selectedDelivery.cropName}</Text>
 
+              <View style={styles.timelineRow}>
+                {['assigned', 'in-transit', 'delivered'].map((step, index) => {
+                  const activeIndex = ['assigned', 'in-transit', 'delivered'].indexOf(
+                    selectedDelivery.status
+                  );
+                  const isActive = index <= activeIndex;
+                  return (
+                    <View key={step} style={styles.timelineStep}>
+                      <View style={[styles.timelineDot, isActive && styles.timelineDotActive]} />
+                      <Text style={[styles.timelineLabel, isActive && styles.timelineLabelActive]}>
+                        {step.replace('-', ' ')}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+
               <View style={styles.statusChipRow}>
                 {STATUS_OPTIONS.map((option) => {
                   const active = newStatus === option.value;
@@ -203,6 +252,28 @@ export default function DeliveriesScreen() {
                     </TouchableOpacity>
                   );
                 })}
+              </View>
+
+              <Input
+                label="Delivery Notes"
+                placeholder="Add pickup or delivery notes"
+                value={deliveryNotes}
+                onChangeText={setDeliveryNotes}
+                multiline
+                numberOfLines={3}
+                containerStyle={styles.notesInput}
+              />
+
+              <View style={styles.proofRow}>
+                <Button
+                  title={deliveryProof ? 'Change Proof' : 'Upload Proof'}
+                  onPress={pickProof}
+                  variant="outline"
+                  size="sm"
+                />
+                {deliveryProof ? (
+                  <Image source={{ uri: deliveryProof.uri }} style={styles.proofImage} />
+                ) : null}
               </View>
 
               <View style={styles.modalActionRow}>
@@ -328,11 +399,55 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: 10,
   },
+  timelineRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  timelineStep: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.border,
+    marginBottom: 4,
+  },
+  timelineDotActive: {
+    backgroundColor: Colors.primary,
+  },
+  timelineLabel: {
+    fontSize: 10,
+    color: Colors.textSecondary,
+    textTransform: 'capitalize',
+  },
+  timelineLabelActive: {
+    color: Colors.textPrimary,
+    fontWeight: '600',
+  },
   statusChipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
     marginBottom: 12,
+  },
+  notesInput: {
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  proofRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  proofImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
   },
   statusChip: {
     borderWidth: 1,

@@ -9,14 +9,19 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import ScreenHeader from '../../components/common/ScreenHeader';
 import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { Colors } from '../../constants/Colors';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../utils/api';
+import { API_BASE_URL } from '../../utils/api';
 
 type FilterStatus = 'all' | 'pending' | 'confirmed' | 'in-transit' | 'delivered';
 
@@ -71,6 +76,8 @@ export default function BuyerOrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<BuyerOrder | null>(null);
+  const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -120,6 +127,55 @@ export default function BuyerOrdersScreen() {
   if (loading) {
     return <LoadingSpinner message="Loading your orders..." />;
   }
+
+  const handlePayNow = async (order: BuyerOrder) => {
+    try {
+      setPayingOrderId(order.id);
+      const token = await SecureStore.getItemAsync('token');
+      if (!token) {
+        setError('Please login again to continue payment');
+        return;
+      }
+
+      const redirectUrl = Linking.createURL('payment');
+      const checkoutUrl = `${API_BASE_URL}/api/orders/${order.id}/payment/checkout?token=${encodeURIComponent(
+        token
+      )}&redirect=${encodeURIComponent(redirectUrl)}`;
+
+      const result = await WebBrowser.openAuthSessionAsync(checkoutUrl, redirectUrl);
+
+      if (result.type === 'success' && result.url) {
+        const parsed = Linking.parse(result.url);
+        const status = typeof parsed.queryParams?.status === 'string' ? parsed.queryParams.status : '';
+        const message =
+          typeof parsed.queryParams?.message === 'string' ? parsed.queryParams.message : '';
+
+        if (status === 'success') {
+          await fetchOrders();
+        } else if (status === 'failed') {
+          setError(message || 'Payment failed');
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start payment');
+    } finally {
+      setPayingOrderId(null);
+    }
+  };
+
+  const cancelOrder = async (order: BuyerOrder) => {
+    try {
+      setCancelLoading(true);
+      setError(null);
+      await api.put(`/orders/${order.id}/cancel`, {});
+      setSelectedOrder(null);
+      await fetchOrders();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to cancel order');
+    } finally {
+      setCancelLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -266,6 +322,32 @@ export default function BuyerOrdersScreen() {
                   label={selectedOrder.paymentStatus}
                 />
               </View>
+              {selectedOrder.paymentStatus !== 'fully-paid' ? (
+                <Button
+                  title={payingOrderId === selectedOrder.id ? 'Processing...' : 'Pay Now'}
+                  onPress={() => {
+                    void handlePayNow(selectedOrder);
+                  }}
+                  variant="primary"
+                  size="md"
+                  loading={payingOrderId === selectedOrder.id}
+                  disabled={payingOrderId === selectedOrder.id}
+                  style={styles.payButton}
+                />
+              ) : null}
+              {selectedOrder.status === 'pending' ? (
+                <Button
+                  title={cancelLoading ? 'Cancelling...' : 'Cancel Order'}
+                  onPress={() => {
+                    void cancelOrder(selectedOrder);
+                  }}
+                  variant="danger"
+                  size="md"
+                  loading={cancelLoading}
+                  disabled={cancelLoading}
+                  style={styles.cancelButton}
+                />
+              ) : null}
               <View style={styles.modalRow}>
                 <Text style={styles.modalLabel}>Created</Text>
                 <Text style={styles.modalValue}>
@@ -458,5 +540,11 @@ const styles = StyleSheet.create({
     color: Colors.surface,
     fontWeight: '700',
     fontSize: 14,
+  },
+  payButton: {
+    marginTop: 12,
+  },
+  cancelButton: {
+    marginTop: 10,
   },
 });

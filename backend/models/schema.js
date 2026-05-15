@@ -108,6 +108,8 @@ export const initDatabase = async () => {
         farmer_paid_at TIMESTAMP,
         farmer_paid_by UUID REFERENCES users(id) ON DELETE SET NULL,
         settlement_note TEXT,
+        delivery_notes TEXT,
+        delivery_proof TEXT,
         advance_amount DECIMAL(12, 2),
         total_amount DECIMAL(12, 2) NOT NULL,
         quantity DECIMAL(10, 2) NOT NULL,
@@ -128,7 +130,9 @@ export const initDatabase = async () => {
       ADD COLUMN IF NOT EXISTS paid_to_farmer BOOLEAN DEFAULT false,
       ADD COLUMN IF NOT EXISTS farmer_paid_at TIMESTAMP,
       ADD COLUMN IF NOT EXISTS farmer_paid_by UUID REFERENCES users(id) ON DELETE SET NULL,
-      ADD COLUMN IF NOT EXISTS settlement_note TEXT
+      ADD COLUMN IF NOT EXISTS settlement_note TEXT,
+      ADD COLUMN IF NOT EXISTS delivery_notes TEXT,
+      ADD COLUMN IF NOT EXISTS delivery_proof TEXT
     `);
 
     // Payment audit table for traceability (buyer payment and farmer settlement actions)

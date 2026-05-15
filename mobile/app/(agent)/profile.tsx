@@ -71,14 +71,29 @@ export default function AgentProfileScreen() {
       setLoading(true);
       setError(null);
 
-      const data = (await api.get('/agent/profile')) as AgentProfile;
-      setProfile(data);
+      const data = (await api.get('/agent/profile')) as any;
+      const stats = data?.assignmentStats || data?.assignment_stats || {};
+      const normalized: AgentProfile = {
+        id: String(data.id),
+        name: data.name || 'Agent',
+        email: data.email || 'N/A',
+        location: data.location || '',
+        contact_number: data.contact_number || data.contactNumber || '',
+        assignmentStats: {
+          totalAssignments: Number(stats.totalAssignments ?? stats.total_assignments ?? 0),
+          activeAssignments: Number(stats.activeAssignments ?? stats.active_assignments ?? 0),
+          completedDeliveries: Number(stats.completedDeliveries ?? stats.completed_deliveries ?? 0),
+          qualityReports: Number(stats.qualityReports ?? stats.quality_reports ?? 0),
+        },
+      };
+
+      setProfile(normalized);
 
       reset({
-        name: data.name || '',
-        email: data.email || '',
-        location: data.location || '',
-        contactNumber: data.contact_number || '',
+        name: normalized.name || '',
+        email: normalized.email || '',
+        location: normalized.location || '',
+        contactNumber: normalized.contact_number || '',
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load profile');

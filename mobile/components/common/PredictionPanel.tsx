@@ -154,16 +154,6 @@ const normalizePredictionResult = (
   };
 };
 
-const getConfidenceBadgeVariant = (confidence: number) => {
-  if (confidence >= 0.75) return 'success' as const;
-  if (confidence >= 0.5) return 'warning' as const;
-  return 'danger' as const;
-};
-
-const formatConfidence = (confidence: number) => {
-  const percent = Math.max(0, Math.min(100, confidence * 100));
-  return `${percent.toFixed(0)}% confidence`;
-};
 
 const formatPredictionValue = (
   mode: PredictionMode,
@@ -277,12 +267,6 @@ export const PredictionPanel: React.FC<PredictionPanelProps> = ({
                 Estimated total for {selectedQuantityKg} kg: ₹{totalEstimate.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
               </Text>
             )}
-            <View style={styles.badgeContainer}>
-              <Badge
-                variant={getConfidenceBadgeVariant(result.confidence)}
-                label={formatConfidence(result.confidence)}
-              />
-            </View>
           </View>
         )}
       </CardContent>
@@ -375,9 +359,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     color: Colors.success,
-  },
-  badgeContainer: {
-    marginTop: 12,
   },
 });
 

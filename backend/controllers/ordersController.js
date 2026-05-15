@@ -1,9 +1,11 @@
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import Razorpay from 'razorpay';
 import pool from '../db.js';
 
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production';
 
 const razorpay = RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET
   ? new Razorpay({
@@ -43,6 +45,15 @@ const createPaymentAuditEntry = async ({
   } catch (err) {
     console.error('Payment audit log error:', err);
   }
+};
+
+const verifyTokenFromQuery = (req) => {
+  const token = typeof req.query.token === 'string' ? req.query.token : null;
+  if (!token) {
+    throw new Error('Missing token');
+  }
+
+  return jwt.verify(token, JWT_SECRET);
 };
 
 // Create order
@@ -109,11 +120,19 @@ export const getOrderById = async (req, res) => {
 export const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, paymentStatus, transporter_id } = req.body;
+    const { status, paymentStatus, transporter_id, deliveryNotes, deliveryProof } = req.body;
 
     const result = await pool.query(
-      'UPDATE orders SET status = COALESCE($1, status), payment_status = COALESCE($2, payment_status), transporter_id = COALESCE($3, transporter_id), updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING *',
-      [status, paymentStatus, transporter_id, id]
+      `UPDATE orders
+       SET status = COALESCE($1, status),
+           payment_status = COALESCE($2, payment_status),
+           transporter_id = COALESCE($3, transporter_id),
+           delivery_notes = COALESCE($4, delivery_notes),
+           delivery_proof = COALESCE($5, delivery_proof),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $6
+       RETURNING *`,
+      [status, paymentStatus, transporter_id, deliveryNotes, deliveryProof, id]
     );
 
     if (result.rows.length === 0) {
@@ -247,6 +266,165 @@ export const createRazorpayOrder = async (req, res) => {
   } catch (err) {
     console.error('Create Razorpay order error:', err);
     res.status(500).json({ error: 'Failed to create payment order', details: err.message });
+  }
+};
+
+// Render Razorpay checkout page for mobile web flow
+export const renderRazorpayCheckout = async (req, res) => {
+  try {
+    if (!razorpay) {
+      return res.status(500).send('Razorpay is not configured on server');
+    }
+
+    const user = verifyTokenFromQuery(req);
+    if (!user || user.role !== 'buyer') {
+      return res.status(403).send('Access denied');
+    }
+
+    const { id: orderId } = req.params;
+    const buyerId = user.id;
+    const redirectUrl = typeof req.query.redirect === 'string' ? req.query.redirect : '';
+
+    const orderResult = await pool.query(
+      `SELECT o.*, c.name AS crop_name
+       FROM orders o
+       JOIN crops c ON o.crop_id = c.id
+       WHERE o.id = $1 AND o.buyer_id = $2`,
+      [orderId, buyerId]
+    );
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).send('Order not found');
+    }
+
+    const order = orderResult.rows[0];
+    if (order.payment_status === 'fully-paid') {
+      return res.status(400).send('Order already paid');
+    }
+
+    const amountInPaise = Math.round((parseFloat(order.total_amount) || 0) * 100);
+    if (amountInPaise <= 0) {
+      return res.status(400).send('Invalid order amount');
+    }
+
+    const shortOrderId = orderId.replace(/-/g, '').slice(0, 14);
+    const receiptId = `agri_${shortOrderId}_${Date.now().toString().slice(-6)}`;
+
+    const razorpayOrder = await razorpay.orders.create({
+      amount: amountInPaise,
+      currency: 'INR',
+      receipt: receiptId,
+      notes: {
+        orderId,
+        buyerId,
+        cropName: order.crop_name || 'Crop order'
+      }
+    });
+
+    await pool.query(
+      `UPDATE orders
+       SET payment_method = $1,
+           razorpay_order_id = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      ['razorpay', razorpayOrder.id, orderId]
+    );
+
+    res.setHeader('Content-Type', 'text/html');
+
+    const safeRedirect = redirectUrl || '';
+    const encodedToken = encodeURIComponent(req.query.token);
+    const checkoutHtml = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AgriFlow Payment</title>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; }
+      .card { max-width: 420px; margin: 40px auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px; }
+      .title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+      .meta { color: #6b7280; font-size: 14px; margin-bottom: 16px; }
+      .button { background: #16a34a; color: #fff; border: none; padding: 12px 16px; border-radius: 8px; width: 100%; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="title">Complete Payment</div>
+      <div class="meta">Order #${orderId.slice(0, 8)} · Amount ₹${(amountInPaise / 100).toFixed(2)}</div>
+      <button class="button" id="payBtn">Pay with Razorpay</button>
+    </div>
+
+    <script>
+      const redirectBase = ${JSON.stringify(safeRedirect)};
+      const token = decodeURIComponent('${encodedToken}');
+
+      const redirectWith = (params) => {
+        if (!redirectBase) return;
+        const query = new URLSearchParams(params).toString();
+        const separator = redirectBase.includes('?') ? '&' : '?';
+        window.location.href = redirectBase + separator + query;
+      };
+
+      const options = {
+        key: ${JSON.stringify(RAZORPAY_KEY_ID)},
+        amount: ${razorpayOrder.amount},
+        currency: ${JSON.stringify(razorpayOrder.currency)},
+        name: 'AgriFlow',
+        description: 'Order payment',
+        order_id: ${JSON.stringify(razorpayOrder.id)},
+        handler: async function (response) {
+          try {
+            const verifyRes = await fetch('${`/api/orders/${orderId}/payment/verify`}', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+              },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              })
+            });
+
+            if (!verifyRes.ok) {
+              const err = await verifyRes.json().catch(() => ({}));
+              redirectWith({ status: 'failed', message: err.error || 'Verification failed', orderId: ${JSON.stringify(orderId)} });
+              return;
+            }
+
+            redirectWith({ status: 'success', orderId: ${JSON.stringify(orderId)} });
+          } catch (err) {
+            redirectWith({ status: 'failed', message: 'Verification error', orderId: ${JSON.stringify(orderId)} });
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            redirectWith({ status: 'cancelled', orderId: ${JSON.stringify(orderId)} });
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (response) {
+        redirectWith({ status: 'failed', message: response?.error?.description || 'Payment failed', orderId: ${JSON.stringify(orderId)} });
+      });
+
+      document.getElementById('payBtn').addEventListener('click', function () {
+        rzp.open();
+      });
+
+      rzp.open();
+    </script>
+  </body>
+</html>`;
+
+    res.send(checkoutHtml);
+  } catch (err) {
+    console.error('Render checkout error:', err);
+    res.status(500).send('Failed to start checkout');
   }
 };
 

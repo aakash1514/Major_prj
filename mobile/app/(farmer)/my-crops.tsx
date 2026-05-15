@@ -36,8 +36,23 @@ export default function MyCropsScreen() {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.get('/farmer/crops') as Crop[];
-      setCrops(data || []);
+      const data = (await api.get('/farmer/crops')) as any[];
+      const normalized = Array.isArray(data)
+        ? data.map((crop) => ({
+            id: String(crop.id),
+            farmerId: String(crop.farmer_id ?? crop.farmerId ?? ''),
+            name: String(crop.name ?? 'Crop'),
+            quantity: Number(crop.quantity ?? 0),
+            unit: String(crop.unit ?? 'kg'),
+            harvestDate: new Date(crop.harvest_date ?? crop.harvestDate ?? Date.now()),
+            images: Array.isArray(crop.images) ? crop.images : [],
+            description: crop.description || '',
+            status: (crop.status || 'pending') as Crop['status'],
+            price: Number(crop.price ?? 0),
+            tac: crop.tac || '',
+          }))
+        : [];
+      setCrops(normalized);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load crops';
       setError(message);
@@ -56,7 +71,7 @@ export default function MyCropsScreen() {
   }, [crops, searchQuery]);
 
   const handleCropPress = (cropId: string) => {
-    router.push('/(farmer)/my-crops');
+    router.push(`/(farmer)/crops/${cropId}`);
   };
 
   const handleAddCrop = () => {
