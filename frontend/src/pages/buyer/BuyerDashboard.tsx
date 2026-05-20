@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { CropCard } from '../../components/common/CropCard';
 import { PredictionPanel } from '../../components/common/PredictionPanel';
 import { useAuthStore } from '../../store/authStore';
+import { API_URL } from '../../../../shared/apiConfig';
 
 interface DashboardStats {
   totalOrders: number;
@@ -96,10 +97,11 @@ export const BuyerDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/buyers/dashboard-stats', {
+      const response = await fetch(`${API_URL}/buyers/dashboard-stats`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
         },
       });
 

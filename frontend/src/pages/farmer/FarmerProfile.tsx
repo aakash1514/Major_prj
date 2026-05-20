@@ -13,6 +13,7 @@ import { Textarea } from '../../components/ui/Textarea';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../utils/api'; // Import api for additional profile details
+import { API_URL } from '../../../../shared/apiConfig';
 
 // Interface representing farmer profile fields
 interface ProfileFormData {
@@ -134,11 +135,12 @@ useEffect(() => {
 
     console.log('📤 Sending payload:', payload);
 
-    const response = await fetch('http://localhost:5000/api/farmer/profile', {
+    const response = await fetch(`${API_URL}/farmer/profile`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
+        'ngrok-skip-browser-warning': 'true',
       },
       body: JSON.stringify(payload)
     });

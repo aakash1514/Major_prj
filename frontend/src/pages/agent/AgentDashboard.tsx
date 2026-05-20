@@ -10,6 +10,7 @@ import { Badge } from '../../components/ui/Badge';
 import { PredictionPanel } from '../../components/common/PredictionPanel';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useAuthStore } from '../../store/authStore';
+import { API_URL } from '../../../../shared/apiConfig';
 
 interface Delivery {
   id: string;
@@ -131,10 +132,11 @@ export const AgentDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/agent/my-deliveries', {
+      const response = await fetch(`${API_URL}/agent/my-deliveries`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
         },
       });
 
@@ -155,10 +157,11 @@ export const AgentDashboard: React.FC = () => {
   const fetchInspectionAssignments = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/agent/inspections/pending', {
+      const response = await fetch(`${API_URL}/agent/inspections/pending`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
         },
       });
 

@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { useAuthStore } from '../../store/authStore';
+import { API_URL } from '../../../../shared/apiConfig';
 
 export const AgentProfile: React.FC = () => {
   const { user } = useAuthStore();
@@ -54,11 +55,12 @@ export const AgentProfile: React.FC = () => {
       setErrorMessage('');
       const token = localStorage.getItem('token');
 
-      const response = await fetch(`http://localhost:5000/api/users/profile`, {
+      const response = await fetch(`${API_URL}/users/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify(formData)
       });

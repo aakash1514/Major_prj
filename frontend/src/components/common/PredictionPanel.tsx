@@ -183,7 +183,7 @@ export const PredictionPanel: React.FC<PredictionPanelProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PredictionResult | null>(null);
 
-  // Full endpoint path: http://localhost:5000/api/predictions/{price|demand} via src/utils/api.
+  // Full endpoint path: {API_URL}/predictions/{price|demand} via src/utils/api.
   const endpoint = mode === 'price' ? '/predictions/price' : '/predictions/demand';
   const payload = useMemo(() => toModelPayload(mode, inputData), [mode, inputData]);
 

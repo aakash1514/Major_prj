@@ -87,7 +87,14 @@ export const AdminOrders: React.FC = () => {
       });
       if (ordersRes.ok) {
         const ordersData = await ordersRes.json();
-        setOrders(ordersData);
+        const ordersArray = Array.isArray(ordersData)
+          ? ordersData
+          : Array.isArray(ordersData?.orders)
+            ? ordersData.orders
+            : [];
+        setOrders(ordersArray);
+      } else {
+        setOrders([]);
       }
 
       // Fetch all crops
@@ -99,7 +106,14 @@ export const AdminOrders: React.FC = () => {
       });
       if (cropsRes.ok) {
         const cropsData = await cropsRes.json();
-        setCrops(cropsData);
+        const cropsArray = Array.isArray(cropsData)
+          ? cropsData
+          : Array.isArray(cropsData?.crops)
+            ? cropsData.crops
+            : [];
+        setCrops(cropsArray);
+      } else {
+        setCrops([]);
       }
 
       // Fetch agents
@@ -111,7 +125,14 @@ export const AdminOrders: React.FC = () => {
       });
       if (agentsRes.ok) {
         const agentsData = await agentsRes.json();
-        setAgents(agentsData);
+        const agentsArray = Array.isArray(agentsData)
+          ? agentsData
+          : Array.isArray(agentsData?.agents)
+            ? agentsData.agents
+            : [];
+        setAgents(agentsArray);
+      } else {
+        setAgents([]);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -190,7 +211,8 @@ export const AdminOrders: React.FC = () => {
   };
 
   // Filter and sort
-  const filteredOrders = orders.filter(order => {
+  const safeOrders = Array.isArray(orders) ? orders : [];
+  const filteredOrders = safeOrders.filter(order => {
     const crop = crops.find(c => c.id === order.crop_id);
     const matchesSearch =
       crop?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -213,15 +235,15 @@ export const AdminOrders: React.FC = () => {
   });
 
   const stats = {
-    total: orders.length,
-    pending: orders.filter(o => o.status === 'pending').length,
-    confirmed: orders.filter(o => o.status === 'confirmed').length,
-    inTransit: orders.filter(o => o.status === 'in-transit').length,
-    delivered: orders.filter(o => o.status === 'delivered').length,
-    totalValue: orders.reduce((sum, o) => sum + o.total_amount, 0)
+    total: safeOrders.length,
+    pending: safeOrders.filter(o => o.status === 'pending').length,
+    confirmed: safeOrders.filter(o => o.status === 'confirmed').length,
+    inTransit: safeOrders.filter(o => o.status === 'in-transit').length,
+    delivered: safeOrders.filter(o => o.status === 'delivered').length,
+    totalValue: safeOrders.reduce((sum, o) => sum + o.total_amount, 0)
   };
 
-  const selectedOrderData = selectedOrder ? orders.find(o => o.id === selectedOrder) : null;
+  const selectedOrderData = selectedOrder ? safeOrders.find(o => o.id === selectedOrder) : null;
   const selectedCrop = selectedOrderData ? crops.find(c => c.id === selectedOrderData.crop_id) : null;
   const selectedAgentData = selectedAgent ? agents.find(a => a.id === selectedAgent) : null;
 

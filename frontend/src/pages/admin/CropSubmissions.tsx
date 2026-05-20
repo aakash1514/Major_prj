@@ -12,6 +12,7 @@ import { Select } from '../../components/ui/Select';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useCropsStore } from '../../store/cropsStore';
 import { api } from '../../utils/api';
+import { API_URL } from '../../../../shared/apiConfig';
 
 interface PricePredictionResult {
   prediction: number | null;
@@ -166,9 +167,10 @@ export const CropSubmissions: React.FC = () => {
   const fetchAllCrops = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/admin/crops', {
+      const response = await fetch(`${API_URL}/admin/crops`, {
         headers: {
           Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         }
       });
       if (!response.ok) {
@@ -241,11 +243,12 @@ export const CropSubmissions: React.FC = () => {
   const handleApprove = async (cropId: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/crops/${cropId}/approve`, {
+      const response = await fetch(`${API_URL}/admin/crops/${cropId}/approve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({ price: 0 })
       });
@@ -275,11 +278,12 @@ export const CropSubmissions: React.FC = () => {
       const token = localStorage.getItem('token');
       console.log(`📤 Listing crop ${cropId} on marketplace with price: ₹${crop.price}`);
       
-      const response = await fetch(`http://localhost:5000/api/admin/crops/${cropId}/list`, {
+      const response = await fetch(`${API_URL}/admin/crops/${cropId}/list`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({ 
           price: crop.price,
@@ -309,11 +313,12 @@ export const CropSubmissions: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/admin/crops/${cropId}/reject`, {
+      const response = await fetch(`${API_URL}/admin/crops/${cropId}/reject`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({ reason: 'Rejected by admin' })
       });

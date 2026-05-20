@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Crop, QualityReport, MarketplaceListing } from '../types';
+import { API_URL } from '../../../shared/apiConfig';
 
 interface CropsState {
   crops: Crop[];
@@ -105,9 +106,10 @@ export const useCropsStore = create<CropsState>((set, get) => ({
   
   fetchCropsByFarmer: async (token: string) => {
     try {
-      const response = await fetch('http://localhost:5000/api/farmer/crops', {
+      const response = await fetch(`${API_URL}/farmer/crops`, {
         headers: {
           Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         }
       });
       

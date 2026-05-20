@@ -13,6 +13,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useCropsStore } from '../../store/cropsStore';
 import { usePredictionsStore } from '../../store/predictionsStore';
 import { Crop } from '../../types';
+import { API_URL } from '../../../../shared/apiConfig';
 
 interface AddCropFormData {
   name: string;
@@ -127,11 +128,12 @@ export const AddCropPage: React.FC = () => {
     console.log('📤 Sending crop payload:', payload);
 
     const token = localStorage.getItem('token');
-    const response = await fetch('http://localhost:5000/api/crops', {
+    const response = await fetch(`${API_URL}/crops`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
+        'ngrok-skip-browser-warning': 'true',
       },
       body: JSON.stringify(payload),
     });
