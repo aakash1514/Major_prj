@@ -15,11 +15,24 @@ Copy `.env.example` values into your environment before running the app.
 Example variable:
 
 - `ML_SERVICE_PORT=5001`
+- `FLASK_ENV=development`
 
 ## Start Server
 
 ```bash
 python app.py
+```
+
+Production:
+
+```bash
+gunicorn -w 4 -b 0.0.0.0:5001 app:app
+```
+
+Development:
+
+```bash
+FLASK_ENV=development python app.py
 ```
 
 Default URL: `http://127.0.0.1:5001`

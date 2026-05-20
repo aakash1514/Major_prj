@@ -11,7 +11,7 @@
 1. Start the ML service:
 
    ```bash
-   cd "ml models"
+   cd ml_service
    python app.py
    ```
 
@@ -33,6 +33,16 @@
    npx expo start
    ```
 
+## Environment Configuration
+
+Copy the example file and edit it for your environment:
+
+```bash
+cp .env.example .env
+```
+
+Variables are documented in [mobile/.env.example](.env.example).
+
 ## Run on a device or emulator
 
 - Android emulator: press `a`
@@ -43,17 +53,19 @@
 
 **Important:** For physical devices and iOS simulators, you must configure the API endpoint before running the app.
 
-Edit [mobile/utils/api.ts](utils/api.ts) and update the `DEV_MACHINE_IP` constant:
+Update the shared API config in [shared/apiConfig.ts](../shared/apiConfig.ts):
 
-- **Android emulator**: leave it as `10.0.2.2` (special alias for localhost)
-- **iOS simulator**: change to `localhost`
-- **Physical device**: change to your machine's local IP (e.g., `192.168.1.105`)
+- **Android emulator**: use `10.0.2.2` (special alias for localhost)
+- **iOS simulator**: use `localhost`
+- **Physical device**: use your machine's local IP (e.g., `192.168.1.105`)
 
 To find your machine's IP:
 - **Windows**: Run `ipconfig` in cmd, look for IPv4 Address
 - **Mac/Linux**: Run `ifconfig` in terminal, look for inet
 
 **Requirement**: Your phone and computer must be on the same Wi-Fi network.
+
+If you are using ngrok, update the shared API config so the app points to the current tunnel URL.
 
 ## ML predictions on mobile
 

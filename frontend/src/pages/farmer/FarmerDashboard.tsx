@@ -219,7 +219,7 @@ export const FarmerDashboard: React.FC = () => {
     labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
     datasets: [
       {
-        label: 'Revenue ($)',
+        label: 'Revenue (₹)',
         data: [1200, 1900, 1000, 1500, 2200, 3000],
         borderColor: 'rgb(255, 143, 0)',
         backgroundColor: 'rgba(255, 143, 0, 0.1)',
@@ -397,7 +397,7 @@ export const FarmerDashboard: React.FC = () => {
             </div>
 
             <div className="text-center p-4 bg-amber-50 rounded-lg">
-              <div className="text-2xl font-bold text-amber-700">${(stats?.totalRevenue || 0).toFixed(0)}</div>
+              <div className="text-2xl font-bold text-amber-700">₹{(stats?.totalRevenue || 0).toFixed(0)}</div>
               <div className="text-sm text-amber-600">Total Revenue</div>
             </div>
 

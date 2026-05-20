@@ -6,8 +6,8 @@ const router = express.Router();
 
 // Public routes
 router.get('/', cropsController.getAllCrops);
-router.get('/:id', cropsController.getCropById);
 router.get('/farmer/:farmerId', cropsController.getCropsByFarmer);
+router.get('/:id', cropsController.getCropById);
 
 // Protected farmer routes
 router.post('/', authenticateToken, requireRole('farmer'), cropsController.createCrop);

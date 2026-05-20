@@ -11,6 +11,7 @@ import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Badge } from '../../components/ui/Badge';
+import { API_URL } from '../../../../shared/apiConfig';
 
 interface Order {
   id: string;
@@ -52,8 +53,11 @@ export const Deliveries: React.FC = () => {
       setLoadingOrders(true);
       const token = localStorage.getItem('token');
 
-      const response = await fetch('http://localhost:5000/api/agent/my-deliveries', {
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await fetch(`${API_URL}/agent/my-deliveries`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
+        }
       });
 
       if (response.ok) {
@@ -75,11 +79,12 @@ export const Deliveries: React.FC = () => {
       setLoadingAction(orderId);
       const token = localStorage.getItem('token');
 
-      const response = await fetch(`http://localhost:5000/api/orders/${orderId}/status`, {
+      const response = await fetch(`${API_URL}/orders/${orderId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({ status: 'in-transit' })
       });
@@ -110,11 +115,12 @@ export const Deliveries: React.FC = () => {
       const token = localStorage.getItem('token');
 
       // For now, we'll just send the notes. Photo upload can be added later if needed
-      const response = await fetch(`http://localhost:5000/api/orders/${orderId}/status`, {
+      const response = await fetch(`${API_URL}/orders/${orderId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({
           status: 'delivered',
@@ -288,7 +294,7 @@ export const Deliveries: React.FC = () => {
                         </div>
                         <div>
                           <p className="text-gray-500 text-sm">Amount</p>
-                          <p className="font-semibold text-green-700">${order.total_amount.toFixed(2)}</p>
+                          <p className="font-semibold text-green-700">₹{order.total_amount.toFixed(2)}</p>
                         </div>
                       </div>
                     </div>
@@ -369,11 +375,11 @@ export const Deliveries: React.FC = () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Total Amount:</span>
-                      <span className="font-semibold text-green-700">${selectedOrderData.total_amount.toFixed(2)}</span>
+                      <span className="font-semibold text-green-700">₹{selectedOrderData.total_amount.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Advance Paid:</span>
-                      <span className="font-medium">${selectedOrderData.advance_amount.toFixed(2)}</span>
+                      <span className="font-medium">₹{selectedOrderData.advance_amount.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Status:</span>

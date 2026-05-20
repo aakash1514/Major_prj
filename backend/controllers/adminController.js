@@ -1,31 +1,121 @@
+import bcrypt from 'bcrypt';
+import { v4 as uuidv4 } from 'uuid';
 import pool from '../db.js';
 
 // Get all users
 export const getAllUsers = async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, email, role, location, kyc, created_at FROM users ORDER BY created_at DESC');
-    res.json(result.rows);
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+    const offset = (page - 1) * limit;
+
+    const [result, countResult] = await Promise.all([
+      pool.query(
+        'SELECT id, name, email, role, location, kyc, created_at FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2',
+        [limit, offset]
+      ),
+      pool.query('SELECT COUNT(*)::int as total FROM users')
+    ]);
+
+    res.json({
+      users: result.rows,
+      pagination: {
+        page,
+        limit,
+        total: countResult.rows[0].total,
+        totalPages: Math.ceil(countResult.rows[0].total / limit)
+      }
+    });
   } catch (err) {
     console.error('Get users error:', err);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 };
 
+// Create user (admin only)
+export const createUser = async (req, res) => {
+  try {
+    const { name, email, password, role, location, contactNumber } = req.body;
+
+    // Validate input
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Check if user already exists
+    const existingUser = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({ error: 'User already exists' });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user
+    const userId = uuidv4();
+    const result = await pool.query(
+      'INSERT INTO users (id, name, email, password, role, location, contact_number) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, email, role',
+      [userId, name, email, hashedPassword, role, location, contactNumber]
+    );
+
+    // If farmer, create farmer record
+    if (role === 'farmer') {
+      await pool.query(
+        'INSERT INTO farmers (id) VALUES ($1)',
+        [userId]
+      );
+    }
+
+    // If buyer, create buyer record
+    if (role === 'buyer') {
+      await pool.query(
+        'INSERT INTO buyers (id) VALUES ($1)',
+        [userId]
+      );
+    }
+
+    res.status(201).json({
+      message: 'User created successfully',
+      user: result.rows[0]
+    });
+  } catch (err) {
+    console.error('Create user error:', err);
+    res.status(500).json({ error: 'Failed to create user' });
+  }
+};
+
 // Get all crops
 export const getAllCrops = async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT c.*, u.name as farmer_name FROM crops c
-       JOIN users u ON c.farmer_id = u.id
-       ORDER BY c.created_at DESC`
-    );
-    // Convert price from string to number
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+    const offset = (page - 1) * limit;
+
+    const [result, countResult] = await Promise.all([
+      pool.query(
+        `SELECT c.*, u.name as farmer_name FROM crops c
+         JOIN users u ON c.farmer_id = u.id
+         ORDER BY c.created_at DESC LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      ),
+      pool.query('SELECT COUNT(*)::int as total FROM crops')
+    ]);
+
     const crops = result.rows.map(crop => ({
       ...crop,
       price: parseFloat(crop.price) || 0,
       quantity: parseInt(crop.quantity) || 0
     }));
-    res.json(crops);
+
+    res.json({
+      crops,
+      pagination: {
+        page,
+        limit,
+        total: countResult.rows[0].total,
+        totalPages: Math.ceil(countResult.rows[0].total / limit)
+      }
+    });
   } catch (err) {
     console.error('Get crops error:', err);
     res.status(500).json({ error: 'Failed to fetch crops' });
@@ -68,7 +158,7 @@ export const rejectCrop = async (req, res) => {
     const { reason } = req.body;
 
     const result = await pool.query(
-      'UPDATE crops SET status = $1, tac = COALESCE($2, tac), updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
+      'UPDATE crops SET status = $1, rejection_reason = COALESCE($2, rejection_reason), updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
       ['rejected', reason, cropId]
     );
 
@@ -126,20 +216,37 @@ export const listCropOnMarketplace = async (req, res) => {
 // Get all orders
 export const getAllOrders = async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT o.*, c.name as crop_name, u.name as buyer_name FROM orders o
-       JOIN crops c ON o.crop_id = c.id
-       JOIN users u ON o.buyer_id = u.id
-       ORDER BY o.created_at DESC`
-    );
-    // Convert numeric fields from string to number
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+    const offset = (page - 1) * limit;
+
+    const [result, countResult] = await Promise.all([
+      pool.query(
+        `SELECT o.*, c.name as crop_name, u.name as buyer_name FROM orders o
+         JOIN crops c ON o.crop_id = c.id
+         JOIN users u ON o.buyer_id = u.id
+         ORDER BY o.created_at DESC LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      ),
+      pool.query('SELECT COUNT(*)::int as total FROM orders')
+    ]);
+
     const orders = result.rows.map(order => ({
       ...order,
       total_amount: parseFloat(order.total_amount) || 0,
       advance_amount: parseFloat(order.advance_amount) || 0,
       quantity: parseInt(order.quantity) || 0
     }));
-    res.json(orders);
+
+    res.json({
+      orders,
+      pagination: {
+        page,
+        limit,
+        total: countResult.rows[0].total,
+        totalPages: Math.ceil(countResult.rows[0].total / limit)
+      }
+    });
   } catch (err) {
     console.error('Get orders error:', err);
     res.status(500).json({ error: 'Failed to fetch orders' });

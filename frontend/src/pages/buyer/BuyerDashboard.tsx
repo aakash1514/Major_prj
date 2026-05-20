@@ -233,7 +233,7 @@ export const BuyerDashboard: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Total Spent</p>
-                  <p className="text-2xl font-bold">${(stats?.totalSpent || 0).toFixed(2)}</p>
+                  <p className="text-2xl font-bold">₹{(stats?.totalSpent || 0).toFixed(2)}</p>
                 </div>
               </div>
             </CardContent>
@@ -331,7 +331,7 @@ export const BuyerDashboard: React.FC = () => {
                     <tr key={order.id} className="border-b hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium">#{order.id.substring(0, 6)}</td>
                       <td className="px-4 py-3">{order.crop_name || 'Unknown Crop'}</td>
-                      <td className="px-4 py-3">${parseFloat(order.total_amount).toFixed(2)}</td>
+                      <td className="px-4 py-3">₹{parseFloat(order.total_amount).toFixed(2)}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           order.status === 'delivered' 

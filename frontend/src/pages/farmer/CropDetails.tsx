@@ -131,7 +131,7 @@ export const CropDetails: React.FC = () => {
                 </div>
                 {crop.price && (
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-green-700">${crop.price}</p>
+                    <p className="text-2xl font-bold text-green-700">₹{crop.price}</p>
                     <p className="text-sm text-gray-500">per {crop.unit}</p>
                   </div>
                 )}
@@ -159,7 +159,7 @@ export const CropDetails: React.FC = () => {
                     <DollarSign className="h-5 w-5 text-gray-400" />
                     <div>
                       <p className="text-sm text-gray-500">Total Value</p>
-                      <p className="font-semibold">${(crop.price * crop.quantity).toLocaleString()}</p>
+                      <p className="font-semibold">₹{(crop.price * crop.quantity).toLocaleString()}</p>
                     </div>
                   </div>
                 )}
@@ -219,7 +219,7 @@ export const CropDetails: React.FC = () => {
                       <div>
                         <p className="font-medium">Order #{order.id.substring(0, 8)}</p>
                         <p className="text-sm text-gray-500">
-                          {new Date(order.createdAt).toLocaleDateString()} • ${order.totalAmount.toFixed(2)}
+                          {new Date(order.createdAt).toLocaleDateString()} • ₹{order.totalAmount.toFixed(2)}
                         </p>
                       </div>
                       <StatusBadge status={order.status} />
@@ -303,7 +303,7 @@ export const CropDetails: React.FC = () => {
               {crop.price && (
                 <div className="text-center p-4 bg-green-50 rounded-lg">
                   <div className="text-2xl font-bold text-green-700">
-                    ${(crop.price * crop.quantity).toLocaleString()}
+                    ₹{(crop.price * crop.quantity).toLocaleString()}
                   </div>
                   <div className="text-sm text-green-600">Potential Revenue</div>
                 </div>

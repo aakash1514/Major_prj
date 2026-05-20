@@ -59,8 +59,13 @@ export default function UsersScreen() {
     try {
       setLoading(true);
       setError(null);
-      const data = (await api.get('/admin/users')) as any[];
-      setUsers(normalizeUsers(Array.isArray(data) ? data : []));
+      const data = await api.get('/admin/users');
+      const usersArray = Array.isArray(data)
+        ? data
+        : Array.isArray((data as { users?: any[] })?.users)
+        ? (data as { users: any[] }).users
+        : [];
+      setUsers(normalizeUsers(usersArray));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch users');
       setUsers([]);

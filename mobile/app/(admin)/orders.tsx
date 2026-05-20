@@ -143,8 +143,13 @@ export default function AdminOrdersScreen() {
     try {
       setLoading(true);
       setError(null);
-      const data = (await api.get('/admin/orders')) as any[];
-      setOrders(normalizeOrders(Array.isArray(data) ? data : []));
+      const data = await api.get('/admin/orders');
+      const ordersArray = Array.isArray(data)
+        ? data
+        : Array.isArray((data as { orders?: any[] })?.orders)
+        ? (data as { orders: any[] }).orders
+        : [];
+      setOrders(normalizeOrders(ordersArray));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch orders');
       setOrders([]);

@@ -145,7 +145,7 @@ export const MyCrop: React.FC = () => {
               <div>
                 <p className="text-sm text-gray-500">Total Value</p>
                 <p className="text-xl font-bold">
-                  ${farmerCrops.reduce((sum, crop) => sum + ((crop.price || 0) * crop.quantity), 0).toLocaleString()}
+                  ₹{farmerCrops.reduce((sum, crop) => sum + ((crop.price || 0) * crop.quantity), 0).toLocaleString()}
                 </p>
               </div>
             </div>
@@ -237,7 +237,7 @@ export const MyCrop: React.FC = () => {
                     {crop.price && (
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Price:</span>
-                        <span className="font-semibold text-green-700">${crop.price} / {crop.unit}</span>
+                        <span className="font-semibold text-green-700">₹{crop.price} / {crop.unit}</span>
                       </div>
                     )}
                   </div>

@@ -43,7 +43,7 @@ export const CropCard: React.FC<CropCardProps> = ({
           {crop.price && (
             <div className="col-span-2 mt-2">
               <p className="text-gray-500">Price</p>
-              <p className="font-semibold text-green-700">${parseFloat(crop.price as any).toFixed(2)} / {crop.unit}</p>
+              <p className="font-semibold text-green-700">₹{parseFloat(crop.price as any).toFixed(2)} / {crop.unit}</p>
             </div>
           )}
         </div>

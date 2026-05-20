@@ -84,6 +84,11 @@ app.use((err, req, res, next) => {
 // ─── START SERVER ────────────────────────────────────────────────────────────
 const startServer = async () => {
   try {
+    if (!process.env.JWT_SECRET) {
+      console.error('FATAL: JWT_SECRET environment variable is not set');
+      process.exit(1);
+    }
+
     // Initialize database
     await initDatabase();
     console.log('✓ Database initialized');

@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useEffect, useState } from 'react';
+import * as ScreenCapture from 'expo-screen-capture';
 import { useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { useAuthStore } from '../../store/authStore';
@@ -38,6 +39,18 @@ export default function LoginScreen() {
       router.replace(`/${user.role}/dashboard`);
     }
   }, [isAuthenticated, user, router]);
+
+  useEffect(() => {
+    const enableScreenshots = async () => {
+      try {
+        await ScreenCapture.allowScreenCaptureAsync();
+      } catch (err) {
+        console.warn('Unable to enable screenshots on login:', err);
+      }
+    };
+
+    void enableScreenshots();
+  }, []);
 
   const onSubmit = async (data: LoginFormData) => {
     setLocalError(null);

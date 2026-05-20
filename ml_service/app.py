@@ -17,11 +17,27 @@ MODEL_DIR = PROJECT_ROOT / "ml models" / "models"
 PRICE_MODEL_PATH = MODEL_DIR / "price_predictor_xgb.pkl"
 DEMAND_MODEL_PATH = MODEL_DIR / "demand_predictor_xgb.pkl"
 
+_model_cache: dict = {}
+
 
 def load_model(model_path: Path):
-    if not model_path.exists():
-        raise FileNotFoundError(f"Model not found: {model_path}")
-    return joblib.load(model_path)
+    if model_path not in _model_cache:
+        if not model_path.exists():
+            raise FileNotFoundError(f"Model not found: {model_path}")
+        _model_cache[model_path] = joblib.load(model_path)
+    return _model_cache[model_path]
+
+
+def preload_models():
+    for path in [PRICE_MODEL_PATH, DEMAND_MODEL_PATH]:
+        try:
+            load_model(path)
+            print(f"✓ Loaded model: {path.name}")
+        except FileNotFoundError as e:
+            print(f"⚠ Model not found (will fail at request time): {e}")
+
+
+preload_models()
 
 
 def to_model_input(payload):
@@ -187,6 +203,16 @@ def health():
     return jsonify({"status": "ok"})
 
 
+@app.get("/health/models")
+def health_models():
+    expected_paths = [PRICE_MODEL_PATH, DEMAND_MODEL_PATH]
+    loaded = sorted(path.name for path in _model_cache.keys())
+    missing = sorted(
+        path.name for path in expected_paths if not path.exists() or path not in _model_cache
+    )
+    return jsonify({"loaded_models": loaded, "missing_models": missing})
+
+
 @app.post("/predict/price")
 def predict_price():
     try:
@@ -213,4 +239,5 @@ def predict_demand():
 
 if __name__ == "__main__":
     port = int(os.getenv("ML_SERVICE_PORT", "5001"))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    debug_mode = os.getenv("FLASK_ENV", "production") == "development"
+    app.run(host="0.0.0.0", port=port, debug=debug_mode)

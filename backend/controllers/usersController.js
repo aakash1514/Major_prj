@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import pool from '../db.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Register a new user
 export const register = async (req, res) => {
@@ -15,8 +15,8 @@ export const register = async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    if (!['farmer', 'buyer', 'admin', 'agent'].includes(role)) {
-      return res.status(400).json({ error: 'Invalid role' });
+    if (!['farmer', 'buyer'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role. Only farmer or buyer accounts can be self-registered.' });
     }
 
     // Check if user already exists

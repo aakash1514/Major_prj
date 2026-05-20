@@ -5,7 +5,7 @@ import pool from '../db.js';
 
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
-const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const razorpay = RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET
   ? new Razorpay({
@@ -47,13 +47,20 @@ const createPaymentAuditEntry = async ({
   }
 };
 
+const createCheckoutToken = (userId, orderId) =>
+  jwt.sign({ userId, orderId, purpose: 'checkout' }, JWT_SECRET, { expiresIn: '15m' });
+
 const verifyTokenFromQuery = (req) => {
   const token = typeof req.query.token === 'string' ? req.query.token : null;
   if (!token) {
     throw new Error('Missing token');
   }
 
-  return jwt.verify(token, JWT_SECRET);
+  const decoded = jwt.verify(token, JWT_SECRET);
+  if (decoded.purpose !== 'checkout') {
+    throw new Error('Invalid token purpose');
+  }
+  return decoded;
 };
 
 // Create order
@@ -90,9 +97,25 @@ export const createOrder = async (req, res) => {
 // Get all orders
 export const getAllOrders = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
-    const orders = result.rows.map(mapOrderNumbers);
-    res.json(orders);
+    const { role, id: userId } = req.user;
+    let query, params;
+    if (role === 'admin') {
+      query = 'SELECT * FROM orders ORDER BY created_at DESC';
+      params = [];
+    } else if (role === 'buyer') {
+      query = 'SELECT * FROM orders WHERE buyer_id = $1 ORDER BY created_at DESC';
+      params = [userId];
+    } else if (role === 'farmer') {
+      query = `SELECT o.* FROM orders o JOIN crops c ON o.crop_id = c.id WHERE c.farmer_id = $1 ORDER BY o.created_at DESC`;
+      params = [userId];
+    } else if (role === 'agent') {
+      query = 'SELECT * FROM orders WHERE transporter_id = $1 ORDER BY created_at DESC';
+      params = [userId];
+    } else {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const result = await pool.query(query, params);
+    res.json(result.rows.map(mapOrderNumbers));
   } catch (err) {
     console.error('Get orders error:', err);
     res.status(500).json({ error: 'Failed to fetch orders' });
@@ -269,6 +292,32 @@ export const createRazorpayOrder = async (req, res) => {
   }
 };
 
+export const createCheckoutTokenForOrder = async (req, res) => {
+  try {
+    if (req.user.role !== 'buyer') {
+      return res.status(403).json({ error: 'Only buyers can initiate payments' });
+    }
+
+    const { id: orderId } = req.params;
+    const buyerId = req.user.id;
+
+    const orderResult = await pool.query(
+      'SELECT id FROM orders WHERE id = $1 AND buyer_id = $2',
+      [orderId, buyerId]
+    );
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const checkoutToken = createCheckoutToken(buyerId, orderId);
+    res.json({ token: checkoutToken, expiresIn: '15m' });
+  } catch (err) {
+    console.error('Create checkout token error:', err);
+    res.status(500).json({ error: 'Failed to create checkout token' });
+  }
+};
+
 // Render Razorpay checkout page for mobile web flow
 export const renderRazorpayCheckout = async (req, res) => {
   try {
@@ -276,13 +325,14 @@ export const renderRazorpayCheckout = async (req, res) => {
       return res.status(500).send('Razorpay is not configured on server');
     }
 
-    const user = verifyTokenFromQuery(req);
-    if (!user || user.role !== 'buyer') {
+    const decoded = verifyTokenFromQuery(req);
+
+    const { id: orderId } = req.params;
+    if (decoded.orderId && decoded.orderId !== orderId) {
       return res.status(403).send('Access denied');
     }
 
-    const { id: orderId } = req.params;
-    const buyerId = user.id;
+    const buyerId = decoded.userId;
     const redirectUrl = typeof req.query.redirect === 'string' ? req.query.redirect : '';
 
     const orderResult = await pool.query(
@@ -730,6 +780,17 @@ export const getPaymentHistory = async (req, res) => {
 export const cancelOrder = async (req, res) => {
   try {
     const { id } = req.params;
+    const { role, id: userId } = req.user;
+
+    const check = await pool.query(
+      `SELECT o.buyer_id, c.farmer_id FROM orders o JOIN crops c ON o.crop_id = c.id WHERE o.id = $1`,
+      [id]
+    );
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+
+    const order = check.rows[0];
+    const canCancel = role === 'admin' || order.buyer_id === userId || order.farmer_id === userId;
+    if (!canCancel) return res.status(403).json({ error: 'Access denied' });
 
     const result = await pool.query(
       'UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND status != $1 RETURNING *',

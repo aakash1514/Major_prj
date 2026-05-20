@@ -1,6 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import * as ScreenCapture from 'expo-screen-capture';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
@@ -37,6 +38,18 @@ export default function RootLayout() {
 
     void rehydrateAuth();
   }, [rehydrate]);
+
+  useEffect(() => {
+    const enableScreenshots = async () => {
+      try {
+        await ScreenCapture.allowScreenCaptureAsync();
+      } catch (err) {
+        console.warn('Unable to enable screenshots:', err);
+      }
+    };
+
+    void enableScreenshots();
+  }, []);
 
   // Handle font errors
   useEffect(() => {

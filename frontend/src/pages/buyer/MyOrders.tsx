@@ -12,6 +12,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore } from '../../store/authStore';
 import { createOrderPayment, verifyOrderPayment } from '../../api/payment';
+import { API_URL } from '../../../../shared/apiConfig';
 
 interface BuyerOrder {
   id: string;
@@ -107,9 +108,10 @@ export const MyOrders: React.FC = () => {
   const fetchBuyerOrders = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/buyers/orders', {
+      const response = await fetch(`${API_URL}/buyers/orders`, {
         headers: {
           Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         }
       });
 
@@ -134,9 +136,10 @@ export const MyOrders: React.FC = () => {
   const fetchCropInfo = async (cropId: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/crops/${cropId}`, {
+      const response = await fetch(`${API_URL}/crops/${cropId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         }
       });
 
@@ -344,7 +347,7 @@ export const MyOrders: React.FC = () => {
         <Card>
           <CardContent className="p-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-indigo-700">${stats.totalSpent.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-indigo-700">₹{stats.totalSpent.toLocaleString()}</div>
               <div className="text-sm text-gray-500">Total Spent</div>
             </div>
           </CardContent>
@@ -423,7 +426,7 @@ export const MyOrders: React.FC = () => {
                             <DollarSign className="h-4 w-4 text-gray-400 mr-2" />
                             <div>
                               <p className="text-gray-500">Total Amount</p>
-                              <p className="font-semibold">${typeof order.total_amount === 'number' ? order.total_amount.toFixed(2) : parseFloat(order.total_amount || 0).toFixed(2)}</p>
+                              <p className="font-semibold">₹{typeof order.total_amount === 'number' ? order.total_amount.toFixed(2) : parseFloat(order.total_amount || 0).toFixed(2)}</p>
                             </div>
                           </div>
 
@@ -456,9 +459,9 @@ export const MyOrders: React.FC = () => {
                               const balance = totalAmt - advanceAmt;
                               return (
                                 <p className="text-sm text-green-800">
-                                  <strong>Advance Paid:</strong> ${advanceAmt.toFixed(2)} 
+                                  <strong>Advance Paid:</strong> ₹{advanceAmt.toFixed(2)} 
                                   <span className="ml-2 text-green-600">
-                                    (Balance: ${balance.toFixed(2)})
+                                    (Balance: ₹{balance.toFixed(2)})
                                   </span>
                                 </p>
                               );

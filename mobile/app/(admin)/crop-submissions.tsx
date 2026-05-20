@@ -33,6 +33,7 @@ interface SubmissionCrop {
   status: string;
   price?: number;
   tac?: string;
+  rejectionReason?: string;
 }
 
 interface PricePredictionResult {
@@ -99,6 +100,7 @@ const normalizeCrops = (raw: any[]): SubmissionCrop[] => {
     status: String(crop.status ?? 'pending').toLowerCase(),
     price: Number(crop.price ?? 0),
     tac: crop.tac || '',
+    rejectionReason: crop.rejection_reason || '',
   }));
 };
 
@@ -441,6 +443,13 @@ export default function CropSubmissionsScreen() {
                     loading={actionLoading}
                     style={styles.actionBtn}
                   />
+                </View>
+              ) : null}
+
+              {selectedCrop.status === 'rejected' && selectedCrop.rejectionReason ? (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Rejection Reason</Text>
+                  <Text style={styles.detailValue}>{selectedCrop.rejectionReason}</Text>
                 </View>
               ) : null}
             </View>

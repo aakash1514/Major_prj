@@ -75,6 +75,11 @@ export const initDatabase = async () => {
       )
     `);
 
+    await pool.query(`
+      ALTER TABLE crops
+      ADD COLUMN IF NOT EXISTS rejection_reason TEXT
+    `);
+
     // Quality Reports table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS quality_reports (

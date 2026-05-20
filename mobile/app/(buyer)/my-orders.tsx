@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import ScreenHeader from '../../components/common/ScreenHeader';
@@ -131,15 +130,16 @@ export default function BuyerOrdersScreen() {
   const handlePayNow = async (order: BuyerOrder) => {
     try {
       setPayingOrderId(order.id);
-      const token = await SecureStore.getItemAsync('token');
-      if (!token) {
-        setError('Please login again to continue payment');
+      const checkoutRes = await api.post(`/orders/${order.id}/payment/checkout-token`, {});
+      const checkoutToken = checkoutRes?.token;
+      if (!checkoutToken) {
+        setError('Unable to start payment. Please try again.');
         return;
       }
 
       const redirectUrl = Linking.createURL('payment');
       const checkoutUrl = `${API_BASE_URL}/api/orders/${order.id}/payment/checkout?token=${encodeURIComponent(
-        token
+        checkoutToken
       )}&redirect=${encodeURIComponent(redirectUrl)}`;
 
       const result = await WebBrowser.openAuthSessionAsync(checkoutUrl, redirectUrl);

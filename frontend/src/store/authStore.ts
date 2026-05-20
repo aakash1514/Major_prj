@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { api } from '../utils/api';
 
 
@@ -72,7 +72,16 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage', // key in localStorage
-      getStorage: () => localStorage, // optional, defaults to localStorage
+      storage: createJSONStorage(() => {
+        if (typeof window === 'undefined') {
+          return {
+            getItem: () => null,
+            setItem: () => {},
+            removeItem: () => {},
+          } as Storage;
+        }
+        return localStorage;
+      }),
     }
   )
 );

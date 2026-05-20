@@ -394,10 +394,10 @@ export const Inspections: React.FC = () => {
 
                         {crop.price && (
                           <div className="flex items-center">
-                            <span className="text-gray-400 mr-2">$</span>
+                            <span className="text-gray-400 mr-2">₹</span>
                             <div>
                               <p className="text-gray-500">Price</p>
-                              <p className="font-medium">${crop.price} / {crop.unit}</p>
+                              <p className="font-medium">₹{crop.price} / {crop.unit}</p>
                             </div>
                           </div>
                         )}

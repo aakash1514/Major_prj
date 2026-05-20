@@ -6,6 +6,7 @@ const router = express.Router();
 
 // Protected admin routes
 router.get('/users', authenticateToken, requireRole('admin'), adminController.getAllUsers);
+router.post('/users', authenticateToken, requireRole('admin'), adminController.createUser);
 router.put('/users/:userId/toggle-kyc', authenticateToken, requireRole('admin'), adminController.toggleUserKyc);
 router.get('/crops', authenticateToken, requireRole('admin'), adminController.getAllCrops);
 router.post('/crops/:cropId/approve', authenticateToken, requireRole('admin'), adminController.approveCrop);

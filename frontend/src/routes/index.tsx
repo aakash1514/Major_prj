@@ -14,6 +14,7 @@ import { AdminUsers } from '../pages/admin/AdminUsers';
 import { CropSubmissions } from '../pages/admin/CropSubmissions';
 import { AgentDashboard } from '../pages/agent/AgentDashboard';
 import { Deliveries } from '../pages/agent/Deliveries';
+import { Inspections } from '../pages/agent/Inspections';
 import { AgentProfile } from '../pages/agent/Profile';
 import { AddCropPage } from '../pages/farmer/AddCropPage';
 import { MyCrop } from '../pages/farmer/MyCrop';
@@ -155,6 +156,10 @@ const Routes: React.FC = () => {
         {
           path: "agent/deliveries",
           element: <ProtectedRoute allowedRoles={['agent']}><Deliveries /></ProtectedRoute>
+        },
+        {
+          path: "agent/inspections",
+          element: <ProtectedRoute allowedRoles={['agent']}><Inspections /></ProtectedRoute>
         },
         {
           path: "agent/profile",

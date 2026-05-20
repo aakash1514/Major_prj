@@ -158,7 +158,7 @@ export const CropSubmissions: React.FC = () => {
 
     return (
       <Badge variant={variant} size="sm">
-        AI est: ${prediction.toFixed(2)}
+        AI est: ₹{prediction.toFixed(2)}
       </Badge>
     );
   };
@@ -194,6 +194,7 @@ export const CropSubmissions: React.FC = () => {
         status: crop.status,
         price: crop.price ? Number(crop.price) : 0,
         tac: crop.tac,
+        rejectionReason: crop.rejection_reason,
       }));
       
       setCrops(formattedCrops);
@@ -272,7 +273,7 @@ export const CropSubmissions: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      console.log(`📤 Listing crop ${cropId} on marketplace with price: $${crop.price}`);
+      console.log(`📤 Listing crop ${cropId} on marketplace with price: ₹${crop.price}`);
       
       const response = await fetch(`http://localhost:5000/api/admin/crops/${cropId}/list`, {
         method: 'POST',
@@ -288,7 +289,7 @@ export const CropSubmissions: React.FC = () => {
 
       if (response.ok) {
         console.log('✅ Crop listed on marketplace successfully');
-        alert(`Crop "${crop.name}" listed on marketplace with price $${crop.price}/${crop.unit}`);
+        alert(`Crop "${crop.name}" listed on marketplace with price ₹${crop.price}/${crop.unit}`);
         fetchAllCrops();
       } else {
         const error = await response.json();
@@ -488,11 +489,11 @@ export const CropSubmissions: React.FC = () => {
 
                         {crop.price && (
                           <div className="flex items-center">
-                            <span className="text-gray-400 mr-2">$</span>
+                            <span className="text-gray-400 mr-2">₹</span>
                             <div>
                               <p className="text-gray-500">Price</p>
                               <div className="flex items-center gap-2 flex-wrap">
-                                <p className="font-medium">${crop.price} / {crop.unit}</p>
+                                <p className="font-medium">₹{crop.price} / {crop.unit}</p>
                                 {renderPricePredictionBadge(crop)}
                               </div>
                             </div>
@@ -633,7 +634,7 @@ export const CropSubmissions: React.FC = () => {
                       {selectedCropData.price && (
                         <div className="flex justify-between">
                           <span className="text-gray-500">Price:</span>
-                          <span className="font-medium">${selectedCropData.price} / {selectedCropData.unit}</span>
+                          <span className="font-medium">₹{selectedCropData.price} / {selectedCropData.unit}</span>
                         </div>
                       )}
                       <div className="flex justify-between">
@@ -648,7 +649,14 @@ export const CropSubmissions: React.FC = () => {
                     <p className="text-gray-600">{selectedCropData.description}</p>
                   </div>
 
-                  {selectedCropData.tac && (
+                  {selectedCropData.status === 'rejected' && selectedCropData.rejectionReason && (
+                    <div>
+                      <h3 className="font-medium text-gray-900 mb-3">Rejection Reason</h3>
+                      <p className="text-gray-600">{selectedCropData.rejectionReason}</p>
+                    </div>
+                  )}
+
+                  {selectedCropData.status !== 'rejected' && selectedCropData.tac && (
                     <div>
                       <h3 className="font-medium text-gray-900 mb-3">Terms & Conditions</h3>
                       <p className="text-gray-600">{selectedCropData.tac}</p>

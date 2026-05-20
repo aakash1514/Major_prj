@@ -1,6 +1,6 @@
 # Agriflow Backend - Synchronized with Frontend
 
-Complete backend for the Agriflow agricultural marketplace application, fully synchronized with the frontend123 application.
+Complete backend for the Agriflow agricultural marketplace application, synchronized with the frontend and mobile apps.
 
 ## Features
 
@@ -24,7 +24,7 @@ Complete backend for the Agriflow agricultural marketplace application, fully sy
 ## Project Structure
 
 ```
-backend-sync/
+backend/
 ├── controllers/        # Business logic
 ├── routes/            # API endpoints
 ├── middleware/        # Auth & custom middleware
@@ -48,7 +48,7 @@ backend-sync/
 
 ```bash
 # Navigate to backend directory
-cd backend-sync
+cd backend
 
 # Install dependencies
 npm install
@@ -69,28 +69,20 @@ CREATE DATABASE agriflow;
 
 ### 4. Environment Configuration
 
+Copy the example file and edit it for your environment:
+
 ```bash
-# Copy the example env file
 cp .env.example .env
-
-# Edit .env with your configuration
-# Required variables:
-# - DATABASE_URL: PostgreSQL connection string
-# - JWT_SECRET: Secret key for JWT tokens
-# - CORS_ORIGIN: Frontend URL (http://localhost:5173)
-# - PORT: Server port (default: 5000)
 ```
 
-Example `.env`:
-```
-PORT=5000
-NODE_ENV=development
-DATABASE_URL=postgresql://user:password@localhost:5432/agriflow
-JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
-CORS_ORIGIN=http://localhost:5173
-MAX_FILE_SIZE=10485760
-UPLOAD_DIR=./uploads
-```
+Required variables (see `.env.example`):
+
+- `PORT`
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `RAZORPAY_KEY_ID`
+- `RAZORPAY_KEY_SECRET`
+- `ALLOWED_ORIGINS`
 
 ### 5. Start Server
 
@@ -143,6 +135,25 @@ Prediction features degrade gracefully if the ML service is not running. Core pa
 - `PUT /:id` - Update crop (farmer only)
 - `DELETE /:id` - Delete crop (farmer only)
 - `GET /farmer/:farmerId` - Get farmer's crops
+
+## Ownership Checks (Crops)
+
+Update/delete crop endpoints only allow the owning farmer to modify their crops. You can verify with these curl calls after logging in to get a token:
+
+```bash
+# Update (should succeed only for the owning farmer)
+curl -X PUT "$API_URL/api/crops/<crop-id>" \
+   -H "Authorization: Bearer $TOKEN" \
+   -H "Content-Type: application/json" \
+   -d '{"name":"Updated Name"}'
+
+# Delete (should succeed only for the owning farmer)
+curl -X DELETE "$API_URL/api/crops/<crop-id>" \
+   -H "Authorization: Bearer $TOKEN"
+```
+
+If the crop does not belong to the authenticated farmer, the API returns:
+`Crop not found or you do not have permission to modify it`.
 
 ### Farmer (`/api/farmer`)
 - `GET /profile` - Get farmer profile
@@ -216,7 +227,7 @@ Prediction features degrade gracefully if the ML service is not running. Core pa
 
 ## Frontend Synchronization
 
-This backend is fully synchronized with `frontend123`:
+This backend is synchronized with the frontend and mobile apps:
 
 ### Matching Points:
 
@@ -297,7 +308,7 @@ curl http://localhost:5000/api/users/profile \
    - Check token expiration (24h)
 
 3. **CORS Issues**
-   - Verify CORS_ORIGIN matches frontend URL
+   - Verify ALLOWED_ORIGINS includes your frontend URL
    - Check browser console for errors
 
 4. **Port Already in Use**

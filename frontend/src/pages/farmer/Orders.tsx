@@ -11,6 +11,7 @@ import { Select } from '../../components/ui/Select';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore } from '../../store/authStore';
+import { API_URL } from '../../../../shared/apiConfig';
 
 interface FarmerOrder {
   id: string;
@@ -52,9 +53,10 @@ export const Orders: React.FC = () => {
   const fetchFarmerOrders = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/farmer/orders', {
+      const response = await fetch(`${API_URL}/farmer/orders`, {
         headers: {
           Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         }
       });
 
@@ -79,9 +81,10 @@ export const Orders: React.FC = () => {
   const fetchCropInfo = async (cropId: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/crops/${cropId}`, {
+      const response = await fetch(`${API_URL}/crops/${cropId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         }
       });
 
@@ -97,11 +100,12 @@ export const Orders: React.FC = () => {
   const handleConfirmOrder = async (orderId: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/orders/${orderId}/status`, {
+      const response = await fetch(`${API_URL}/orders/${orderId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({ status: 'confirmed' }),
       });
@@ -238,7 +242,7 @@ export const Orders: React.FC = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Total Revenue</p>
-                <p className="text-xl font-bold">${stats.totalRevenue.toLocaleString()}</p>
+                <p className="text-xl font-bold">₹{stats.totalRevenue.toLocaleString()}</p>
               </div>
             </div>
           </CardContent>
@@ -317,7 +321,7 @@ export const Orders: React.FC = () => {
                             <DollarSign className="h-4 w-4 text-gray-400 mr-2" />
                             <div>
                               <p className="text-gray-500">Total Amount</p>
-                              <p className="font-semibold">${typeof order.total_amount === 'number' ? order.total_amount.toFixed(2) : parseFloat(order.total_amount || 0).toFixed(2)}</p>
+                              <p className="font-semibold">₹{typeof order.total_amount === 'number' ? order.total_amount.toFixed(2) : parseFloat(order.total_amount || 0).toFixed(2)}</p>
                             </div>
                           </div>
 
@@ -350,9 +354,9 @@ export const Orders: React.FC = () => {
                               const balance = totalAmt - advanceAmt;
                               return (
                                 <p className="text-sm text-green-800">
-                                  <strong>Advance Paid:</strong> ${advanceAmt.toFixed(2)} 
+                                  <strong>Advance Paid:</strong> ₹{advanceAmt.toFixed(2)} 
                                   <span className="ml-2 text-green-600">
-                                    (Balance: ${balance.toFixed(2)})
+                                    (Balance: ₹{balance.toFixed(2)})
                                   </span>
                                 </p>
                               );

@@ -9,6 +9,7 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Badge } from '../../components/ui/Badge';
+import { API_URL } from '../../../../shared/apiConfig';
 
 interface Agent {
   id: string;
@@ -67,8 +68,11 @@ export const AdminOrders: React.FC = () => {
       const token = localStorage.getItem('token');
 
       // Fetch all orders
-      const ordersRes = await fetch('http://localhost:5000/api/admin/orders', {
-        headers: { Authorization: `Bearer ${token}` }
+      const ordersRes = await fetch(`${API_URL}/admin/orders`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
+        }
       });
       if (ordersRes.ok) {
         const ordersData = await ordersRes.json();
@@ -76,8 +80,11 @@ export const AdminOrders: React.FC = () => {
       }
 
       // Fetch all crops
-      const cropsRes = await fetch('http://localhost:5000/api/crops', {
-        headers: { Authorization: `Bearer ${token}` }
+      const cropsRes = await fetch(`${API_URL}/crops`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
+        }
       });
       if (cropsRes.ok) {
         const cropsData = await cropsRes.json();
@@ -85,8 +92,11 @@ export const AdminOrders: React.FC = () => {
       }
 
       // Fetch agents
-      const agentsRes = await fetch('http://localhost:5000/api/agent/list', {
-        headers: { Authorization: `Bearer ${token}` }
+      const agentsRes = await fetch(`${API_URL}/agent/list`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
+        }
       });
       if (agentsRes.ok) {
         const agentsData = await agentsRes.json();
@@ -109,11 +119,12 @@ export const AdminOrders: React.FC = () => {
       setAssigningOrder(orderId);
       const token = localStorage.getItem('token');
 
-      const response = await fetch(`http://localhost:5000/api/orders/${orderId}/status`, {
+      const response = await fetch(`${API_URL}/orders/${orderId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({
           status: 'assigned',
@@ -199,7 +210,7 @@ export const AdminOrders: React.FC = () => {
           { label: 'Confirmed', value: stats.confirmed, color: 'green' },
           { label: 'In Transit', value: stats.inTransit, color: 'purple' },
           { label: 'Delivered', value: stats.delivered, color: 'emerald' },
-          { label: 'Total Value', value: `$${stats.totalValue.toLocaleString()}`, color: 'indigo' }
+          { label: 'Total Value', value: `₹${stats.totalValue.toLocaleString()}`, color: 'indigo' }
         ].map((stat, idx) => (
           <Card key={idx}>
             <CardContent className="p-4">
@@ -292,7 +303,7 @@ export const AdminOrders: React.FC = () => {
                             <DollarSign className="h-4 w-4 text-gray-400 mr-2" />
                             <div>
                               <p className="text-gray-500">Amount</p>
-                              <p className="font-semibold">${order.total_amount.toFixed(2)}</p>
+                              <p className="font-semibold">₹{order.total_amount.toFixed(2)}</p>
                             </div>
                           </div>
 
@@ -410,7 +421,7 @@ export const AdminOrders: React.FC = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Total Amount:</span>
-                        <span className="font-semibold text-green-700">${selectedOrderData.total_amount.toFixed(2)}</span>
+                        <span className="font-semibold text-green-700">₹{selectedOrderData.total_amount.toFixed(2)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Status:</span>
@@ -500,7 +511,7 @@ export const AdminOrders: React.FC = () => {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-500">Price:</span>
-                            <span className="font-medium">${selectedCrop.price} / {selectedCrop.unit}</span>
+                            <span className="font-medium">₹{selectedCrop.price} / {selectedCrop.unit}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-500">Harvest:</span>
@@ -526,12 +537,12 @@ export const AdminOrders: React.FC = () => {
                         <>
                           <div className="flex justify-between">
                             <span className="text-gray-500">Advance Paid:</span>
-                            <span className="font-medium">${selectedOrderData.advance_amount.toFixed(2)}</span>
+                            <span className="font-medium">₹{selectedOrderData.advance_amount.toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-500">Balance Due:</span>
                             <span className="font-medium">
-                              ${(selectedOrderData.total_amount - selectedOrderData.advance_amount).toFixed(2)}
+                              ₹{(selectedOrderData.total_amount - selectedOrderData.advance_amount).toFixed(2)}
                             </span>
                           </div>
                         </>

@@ -7,6 +7,7 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { PredictionPanel } from '../../components/common/PredictionPanel';
 import { useAuthStore } from '../../store/authStore';
+import { API_URL } from '../../../../shared/apiConfig';
 
 interface Crop {
   id: string;
@@ -122,9 +123,10 @@ export const MarketplacePage: React.FC = () => {
   const fetchListedCrops = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/crops', {
+      const response = await fetch(`${API_URL}/crops`, {
         headers: {
           Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         }
       });
 
@@ -153,9 +155,10 @@ export const MarketplacePage: React.FC = () => {
   const fetchFarmerInfo = async (farmerId: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/users/${farmerId}`, {
+      const response = await fetch(`${API_URL}/users/${farmerId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         }
       });
 
@@ -226,11 +229,12 @@ export const MarketplacePage: React.FC = () => {
       const token = localStorage.getItem('token');
       const totalAmount = (crop.price || 0) * orderQuantity;
 
-      const response = await fetch('http://localhost:5000/api/orders', {
+      const response = await fetch(`${API_URL}/orders`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({
           cropId: crop.id,
@@ -362,7 +366,7 @@ export const MarketplacePage: React.FC = () => {
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-grow">
                   <Input
-                    label="Min Price ($)"
+                    label="Min Price (₹)"
                     type="number"
                     name="minPrice"
                     placeholder="0"
@@ -371,7 +375,7 @@ export const MarketplacePage: React.FC = () => {
                   />
                   
                   <Input
-                    label="Max Price ($)"
+                    label="Max Price (₹)"
                     type="number"
                     name="maxPrice"
                     placeholder="1000"

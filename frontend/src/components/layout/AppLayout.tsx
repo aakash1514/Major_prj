@@ -60,6 +60,7 @@ export const AppLayout: React.FC = () => {
       agent: [
         { to: '/agent/dashboard', label: 'Dashboard' },
         { to: '/agent/profile', label: 'Profile' },
+        { to: '/agent/inspections', label: 'Inspections' },
         { to: '/agent/deliveries', label: 'Deliveries' },
       ],
     };
