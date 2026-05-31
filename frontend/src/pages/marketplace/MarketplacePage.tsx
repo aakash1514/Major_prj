@@ -42,6 +42,23 @@ const getCategoryLabel = (category: string) => {
   return `${category.charAt(0).toUpperCase()}${category.slice(1)}`;
 };
 
+const resolveImageUrl = (value?: string) => {
+  if (!value) return null;
+  if (value.startsWith('blob:')) {
+    return null;
+  }
+  if (value.startsWith('http') || value.startsWith('data:')) {
+    return value;
+  }
+
+  const apiBase = API_URL.replace(/\/api\/?$/, '');
+  if (value.startsWith('/uploads')) {
+    return `${apiBase}${value}`;
+  }
+
+  return value;
+};
+
 export const MarketplacePage: React.FC = () => {
   const { user } = useAuthStore();
   const [listedCrops, setListedCrops] = useState<Crop[]>([]);
@@ -422,6 +439,7 @@ export const MarketplacePage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {sortedCrops.map((crop) => {
               const farmer = farmerInfo.get(crop.farmer_id);
+              const cropImage = resolveImageUrl(crop.image_url || crop.images?.[0]);
               return (
                 <motion.div
                   key={crop.id}
@@ -432,8 +450,8 @@ export const MarketplacePage: React.FC = () => {
                   <Card className="hover:shadow-lg transition-shadow duration-300 h-full flex flex-col">
                     {/* Crop Image */}
                     <div className="w-full h-48 bg-gradient-to-br from-green-200 to-green-400 flex items-center justify-center overflow-hidden">
-                      {crop.image_url ? (
-                        <img src={crop.image_url} alt={crop.name} className="w-full h-full object-cover" />
+                      {cropImage ? (
+                        <img src={cropImage} alt={crop.name} className="w-full h-full object-cover" />
                       ) : (
                         <div className="text-center text-green-700">
                           <div className="text-4xl">🌱</div>

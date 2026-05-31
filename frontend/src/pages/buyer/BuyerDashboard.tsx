@@ -50,6 +50,24 @@ export const BuyerDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const featuredCrops = useMemo(() => {
+    if (!stats?.featuredCrops) return [];
+
+    return stats.featuredCrops.map((crop: any) => ({
+      id: crop.id,
+      farmerId: crop.farmerId || crop.farmer_id,
+      name: crop.name,
+      quantity: Number(crop.quantity) || 0,
+      unit: crop.unit || 'kg',
+      harvestDate: crop.harvestDate || crop.harvest_date || crop.created_at || new Date().toISOString(),
+      images: crop.images || (crop.image_url ? [crop.image_url] : []),
+      description: crop.description,
+      status: crop.status || 'listed',
+      price: crop.price !== undefined && crop.price !== null ? Number(crop.price) : undefined,
+      tac: crop.tac
+    }));
+  }, [stats]);
+
   const priceTrendCropTypes = useMemo(() => {
     if (!stats) return [] as string[];
 
@@ -289,8 +307,8 @@ export const BuyerDashboard: React.FC = () => {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {stats?.featuredCrops && stats.featuredCrops.length > 0 ? (
-            stats.featuredCrops.map((crop: any) => (
+          {featuredCrops.length > 0 ? (
+            featuredCrops.map((crop) => (
               <motion.div
                 key={crop.id}
                 initial={{ opacity: 0, scale: 0.95 }}

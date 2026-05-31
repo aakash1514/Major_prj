@@ -143,13 +143,19 @@ export const getBuyerDashboardStats = async (req, res) => {
 
     // Get featured crops (listed crops, limit 6)
     const featuredCropsResult = await pool.query(
-      `SELECT id, name, status, created_at, farmer_id, price
+      `SELECT id, name, status, created_at, farmer_id, price, quantity, unit, description, harvest_date, images
        FROM crops
        WHERE status = $1
        ORDER BY created_at DESC
        LIMIT 6`,
       ['listed']
     );
+    const featuredCrops = featuredCropsResult.rows.map((crop) => ({
+      ...crop,
+      price: parseFloat(crop.price) || 0,
+      quantity: parseInt(crop.quantity) || 0,
+      images: crop.images || []
+    }));
 
     // Get order status breakdown for this buyer
     const orderStatusBreakdownResult = await pool.query(
@@ -173,7 +179,7 @@ export const getBuyerDashboardStats = async (req, res) => {
       totalSpent,
       orderStatusBreakdown,
       recentOrders: recentOrdersResult.rows || [],
-      featuredCrops: featuredCropsResult.rows || []
+      featuredCrops
     });
   } catch (err) {
     console.error('Get buyer dashboard stats error:', err);

@@ -303,7 +303,7 @@ export const LandingPage: React.FC = () => {
                 </div>
               </div>
               <p className="text-gray-600 italic">
-                "Since joining AgriFresh, I've been able to sell my crops at better prices and reach more buyers than ever before. The quality verification process gives my customers confidence."
+                "Since joining AgriFlow, I've been able to sell my crops at better prices and reach more buyers than ever before. The quality verification process gives my customers confidence."
               </p>
             </motion.div>
             
@@ -326,7 +326,7 @@ export const LandingPage: React.FC = () => {
                 </div>
               </div>
               <p className="text-gray-600 italic">
-                "As a restaurant owner, I need consistent quality produce. AgriFresh lets me source directly from farmers with verified quality, and the delivery system is incredibly reliable."
+                "As a restaurant owner, I need consistent quality produce. AgriFlow lets me source directly from farmers with verified quality, and the delivery system is incredibly reliable."
               </p>
             </motion.div>
             
@@ -349,7 +349,7 @@ export const LandingPage: React.FC = () => {
                 </div>
               </div>
               <p className="text-gray-600 italic">
-                "Working as a quality agent for AgriFresh has been rewarding. The platform makes it easy to schedule inspections, document findings, and ensure only the best crops reach the marketplace."
+                "Working as a quality agent for AgriFlow has been rewarding. The platform makes it easy to schedule inspections, document findings, and ensure only the best crops reach the marketplace."
               </p>
             </motion.div>
           </div>
@@ -361,7 +361,7 @@ export const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold mb-6">Ready to transform your agricultural business?</h2>
           <p className="text-xl mb-8 max-w-3xl mx-auto text-amber-50">
-            Join AgriFresh today and be part of the future of agricultural commerce.
+            Join AgriFlow today and be part of the future of agricultural commerce.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link to="/register">

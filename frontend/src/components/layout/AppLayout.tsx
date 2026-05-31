@@ -80,7 +80,7 @@ export const AppLayout: React.FC = () => {
           <div className="flex justify-between h-16">
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
-                <Link to="/" className="text-2xl font-bold text-green-700">AgriFresh</Link>
+                <Link to="/" className="text-2xl font-bold text-green-700">AgriFlow</Link>
               </div>
             </div>
             
@@ -225,7 +225,7 @@ export const AppLayout: React.FC = () => {
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="mb-4 md:mb-0">
               <p className="text-gray-500 text-sm">
-                &copy; {new Date().getFullYear()} AgriFresh. All rights reserved.
+                &copy; {new Date().getFullYear()} AgriFlow. All rights reserved.
               </p>
             </div>
             <div className="flex space-x-6">

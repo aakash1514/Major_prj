@@ -4,6 +4,7 @@ import { Card, CardContent, CardFooter } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Crop } from '../../types';
+import { API_URL } from '../../../../shared/apiConfig';
 
 interface CropCardProps {
   crop: Crop;
@@ -16,11 +17,31 @@ export const CropCard: React.FC<CropCardProps> = ({
   showActions = true,
   linkTo 
 }) => {
+  const resolveImageUrl = (value?: string) => {
+    if (!value) return null;
+    if (value.startsWith('blob:')) {
+      return null;
+    }
+    if (value.startsWith('http') || value.startsWith('data:')) {
+      return value;
+    }
+
+    const apiBase = API_URL.replace(/\/api\/?$/, '');
+    if (value.startsWith('/uploads')) {
+      return `${apiBase}${value}`;
+    }
+
+    return value;
+  };
+
+  const imageSrc = resolveImageUrl(crop.images?.[0])
+    || 'https://images.pexels.com/photos/601798/pexels-photo-601798.jpeg';
+
   return (
     <Card className="h-full flex flex-col hover:shadow-lg transition-shadow duration-300">
       <div className="aspect-video overflow-hidden">
         <img 
-          src={crop.images?.[0] || 'https://images.pexels.com/photos/601798/pexels-photo-601798.jpeg'} 
+          src={imageSrc} 
           alt={crop.name} 
           className="w-full h-full object-cover"
         />
@@ -40,10 +61,15 @@ export const CropCard: React.FC<CropCardProps> = ({
             <p className="text-gray-500">Harvest Date</p>
             <p className="font-medium">{crop.harvestDate ? new Date(crop.harvestDate).toLocaleDateString() : 'N/A'}</p>
           </div>
-          {crop.price && (
+          {crop.price !== undefined && crop.price !== null ? (
             <div className="col-span-2 mt-2">
               <p className="text-gray-500">Price</p>
               <p className="font-semibold text-green-700">₹{parseFloat(crop.price as any).toFixed(2)} / {crop.unit}</p>
+            </div>
+          ) : (
+            <div className="col-span-2 mt-2">
+              <p className="text-gray-500">Price</p>
+              <p className="font-semibold text-amber-700">Not set</p>
             </div>
           )}
         </div>

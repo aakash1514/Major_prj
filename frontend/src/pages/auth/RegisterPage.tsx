@@ -51,7 +51,7 @@ export const RegisterPage: React.FC = () => {
         className="w-full max-w-md"
       >
         <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-green-700">AgriFresh</h1>
+          <h1 className="text-3xl font-bold text-green-700">AgriFlow</h1>
           <p className="mt-2 text-gray-600">Create your account</p>
         </div>
 
