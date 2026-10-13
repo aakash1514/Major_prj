@@ -1,0 +1,14 @@
+node_modules/
+.worktrees/
+.build/
+results/raw/
+
+# Internal analysis; kept local
+PERFORMANCE_REPORT.md
+# ml_eval.py output (also covered by results/raw/ above)
+results/raw/ml-eval.json
+# Full local baseline (contains internal analysis); results/summary-*.json is published instead
+results/baseline-2026-10-13.json
+RESUME_BULLETS.md
+# Commit the lockfile despite the root .gitignore rule
+!package-lock.json

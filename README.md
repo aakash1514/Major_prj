@@ -115,3 +115,23 @@ If you expose the backend with ngrok, update [shared/apiConfig.ts](shared/apiCon
 - mobile
 - ml_service
 - shared
+
+## Performance
+
+Measured with k6 load tests (50 concurrent users, 60 s runs, median of 3) against PostgreSQL seeded with 10,000 orders and 2,000 crops, all on localhost. ML rows: median of 200 sequential requests, median of 3 runs.
+
+Before = commit `2e2a563`, after = commit `e3e1155` (includes `0f151ee`), same seeded database and hardware.
+
+| Metric | Before | After |
+|---|---:|---:|
+| `/api/admin/orders` p95 latency | 20.5 s | 974 ms (21.1× faster) |
+| `/api/admin/orders` throughput | 4.9 req/s | 81.5 req/s |
+| `/api/admin/orders` error rate | 38.7% | 0% |
+| `/api/admin/orders` response size | 6.4 MiB | 13 KiB |
+| Price prediction, median latency | 738.7 ms | 183.8 ms (4.0× faster) |
+| Demand prediction, median latency | 15.8 ms | 5.2 ms (3.0× faster) |
+
+- **Server-side pagination (LIMIT/OFFSET)** on the admin orders, crops and users endpoints.
+- **In-memory model caching** in the ML service: models load once at startup instead of on every request (both sides measured under waitress).
+
+Raw numbers: [perf/results/summary-2026-10-13.json](perf/results/summary-2026-10-13.json). To reproduce, see [perf/README.md](perf/README.md).

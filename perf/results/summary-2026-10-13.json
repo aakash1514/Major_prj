@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-13",
+  "test_setup": {
+    "api": "k6, 10 s warm-up then 50 concurrent users for 60 s, median of 3 runs",
+    "ml": "ML service under waitress (8 threads), 10 warm-up then 200 sequential requests, median of 3 runs",
+    "database": "PostgreSQL 15.4 seeded with 10,000 orders, 2,000 crops, 261 users",
+    "environment": "Single machine, all services on localhost"
+  },
+  "commits": {
+    "before": "2e2a563",
+    "after": "e3e1155",
+    "after_includes": "0f151ee"
+  },
+  "metrics": [
+    {
+      "name": "/api/admin/orders p95 latency",
+      "unit": "ms",
+      "before": 20545.28265,
+      "after": 973.6735799999996
+    },
+    {
+      "name": "/api/admin/orders throughput",
+      "unit": "req/s",
+      "before": 4.916666666666667,
+      "after": 81.55
+    },
+    {
+      "name": "/api/admin/orders error rate (5xx + timeouts)",
+      "unit": "fraction",
+      "before": 0.38650306748466257,
+      "after": 0
+    },
+    {
+      "name": "/api/admin/orders response size",
+      "unit": "KiB (1024 bytes)",
+      "before": 6538.5546875,
+      "after": 13.005859375
+    },
+    {
+      "name": "POST /predict/price median latency",
+      "unit": "ms",
+      "before": 738.69385,
+      "after": 183.78789999999998
+    },
+    {
+      "name": "POST /predict/demand median latency",
+      "unit": "ms",
+      "before": 15.7622,
+      "after": 5.17055
+    }
+  ]
+}

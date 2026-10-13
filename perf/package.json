@@ -1,0 +1,14 @@
+{
+  "name": "agriflow-perf",
+  "private": true,
+  "type": "module",
+  "description": "Performance baseline harness for AgriFlow (measurement only)",
+  "scripts": {
+    "seed": "node seed.js"
+  },
+  "devDependencies": {
+    "bcrypt": "^6.0.0",
+    "lighthouse": "^13.5.0",
+    "pg": "^8.23.1"
+  }
+}
