@@ -102,7 +102,7 @@ export const initDatabase = async () => {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         buyer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         crop_id UUID NOT NULL REFERENCES crops(id) ON DELETE CASCADE,
-        status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'assigned', 'in-transit', 'delivered')),
+        status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'assigned', 'in-transit', 'delivered', 'cancelled')),
         payment_status VARCHAR(50) DEFAULT 'pending' CHECK (payment_status IN ('pending', 'advance-paid', 'fully-paid')),
         payment_method VARCHAR(50),
         razorpay_order_id VARCHAR(100),
@@ -138,6 +138,13 @@ export const initDatabase = async () => {
       ADD COLUMN IF NOT EXISTS settlement_note TEXT,
       ADD COLUMN IF NOT EXISTS delivery_notes TEXT,
       ADD COLUMN IF NOT EXISTS delivery_proof TEXT
+    `);
+
+    // Allow 'cancelled' on existing installations (CREATE TABLE IF NOT EXISTS won't update the CHECK)
+    await pool.query(`
+      ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check;
+      ALTER TABLE orders ADD CONSTRAINT orders_status_check
+        CHECK (status IN ('pending', 'confirmed', 'assigned', 'in-transit', 'delivered', 'cancelled'));
     `);
 
     // Payment audit table for traceability (buyer payment and farmer settlement actions)

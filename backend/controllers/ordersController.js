@@ -183,6 +183,7 @@ export const getOrderById = async (req, res) => {
 };
 
 const ORDER_STATUSES = ['pending', 'confirmed', 'assigned', 'in-transit', 'delivered'];
+const CANCELLABLE_STATUSES = ['pending', 'confirmed', 'assigned'];
 const AGENT_ORDER_STATUSES = ['assigned', 'in-transit', 'delivered'];
 
 // Update order status
@@ -202,6 +203,10 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
     const current = check.rows[0];
+
+    if (current.status === 'cancelled' && role !== 'admin') {
+      return res.status(400).json({ error: 'Order is cancelled' });
+    }
 
     if (status !== undefined && !ORDER_STATUSES.includes(status)) {
       return res.status(400).json({ error: `status must be one of: ${ORDER_STATUSES.join(', ')}` });
@@ -346,6 +351,10 @@ export const createRazorpayOrder = async (req, res) => {
       return res.status(400).json({ error: 'Order is already fully paid' });
     }
 
+    if (order.status === 'cancelled') {
+      return res.status(400).json({ error: 'Order is cancelled' });
+    }
+
     const amountInPaise = Math.round((parseFloat(order.total_amount) || 0) * 100);
     if (amountInPaise <= 0) {
       return res.status(400).json({ error: 'Invalid order amount for payment' });
@@ -466,6 +475,9 @@ export const renderRazorpayCheckout = async (req, res) => {
     const order = orderResult.rows[0];
     if (order.payment_status === 'fully-paid') {
       return res.status(400).send('Order already paid');
+    }
+    if (order.status === 'cancelled') {
+      return res.status(400).send('Order is cancelled');
     }
 
     const amountInPaise = Math.round((parseFloat(order.total_amount) || 0) * 100);
@@ -899,7 +911,7 @@ export const cancelOrder = async (req, res) => {
     const { role, id: userId } = req.user;
 
     const check = await pool.query(
-      `SELECT o.buyer_id, c.farmer_id FROM orders o JOIN crops c ON o.crop_id = c.id WHERE o.id = $1`,
+      `SELECT o.buyer_id, o.status, o.payment_status, c.farmer_id FROM orders o JOIN crops c ON o.crop_id = c.id WHERE o.id = $1`,
       [id]
     );
     if (check.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
@@ -908,13 +920,23 @@ export const cancelOrder = async (req, res) => {
     const canCancel = role === 'admin' || order.buyer_id === userId || order.farmer_id === userId;
     if (!canCancel) return res.status(403).json({ error: 'Access denied' });
 
+    if (order.payment_status !== 'pending') {
+      return res.status(400).json({ error: 'Paid orders cannot be cancelled' });
+    }
+    if (!CANCELLABLE_STATUSES.includes(order.status)) {
+      return res.status(400).json({ error: `Orders that are ${order.status} cannot be cancelled` });
+    }
+
+    // Re-check in the UPDATE so a payment or status change since the SELECT isn't overwritten
     const result = await pool.query(
-      'UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND status != $1 RETURNING *',
-      ['cancelled', id]
+      `UPDATE orders SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND payment_status = 'pending' AND status = ANY($2)
+       RETURNING *`,
+      [id, CANCELLABLE_STATUSES]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found or cannot be cancelled' });
+      return res.status(409).json({ error: 'Order changed while cancelling; please refresh' });
     }
 
     res.json({
