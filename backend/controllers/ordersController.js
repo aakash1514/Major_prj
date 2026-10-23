@@ -71,17 +71,45 @@ export const createOrder = async (req, res) => {
     }
 
     const buyerId = req.user.id;
-    const { cropId, quantity, advanceAmount, totalAmount } = req.body;
+    // Any client-sent totalAmount is ignored: the price always comes from the crop row.
+    const { cropId, advanceAmount } = req.body;
+    const quantity = Number(req.body.quantity);
 
-    if (!cropId || !quantity || !totalAmount) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!cropId || !Number.isFinite(quantity) || quantity <= 0) {
+      return res.status(400).json({ error: 'cropId and a positive quantity are required' });
+    }
+
+    const cropResult = await pool.query(
+      'SELECT price, quantity, status FROM crops WHERE id = $1',
+      [cropId]
+    );
+    if (cropResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Crop not found' });
+    }
+
+    const crop = cropResult.rows[0];
+    if (crop.status !== 'listed') {
+      return res.status(400).json({ error: 'This crop is not available for purchase' });
+    }
+    if (quantity > parseFloat(crop.quantity)) {
+      return res.status(400).json({ error: `Only ${parseFloat(crop.quantity)} available` });
+    }
+
+    const totalAmount = Math.round(parseFloat(crop.price) * quantity * 100) / 100;
+    if (!(totalAmount > 0)) {
+      return res.status(400).json({ error: 'This crop has no valid price' });
+    }
+
+    const advance = Number(advanceAmount) || 0;
+    if (advance < 0 || advance > totalAmount) {
+      return res.status(400).json({ error: 'advanceAmount must be between 0 and the order total' });
     }
 
     const result = await pool.query(
       `INSERT INTO orders (buyer_id, crop_id, quantity, advance_amount, total_amount, status, payment_status)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [buyerId, cropId, quantity, advanceAmount || 0, totalAmount, 'pending', 'pending']
+      [buyerId, cropId, quantity, advance, totalAmount, 'pending', 'pending']
     );
 
     res.status(201).json({
