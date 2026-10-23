@@ -14,26 +14,29 @@ Copy `.env.example` values into your environment before running the app.
 
 Example variable:
 
-- `ML_SERVICE_PORT=5001`
-- `FLASK_ENV=development`
+- `ML_SERVICE_PORT=5001` (port for `python app.py`)
+- `FLASK_ENV=production` (debug mode is enabled only when this is `development`; default is off)
 
 ## Start Server
 
-```bash
-python app.py
-```
-
-Production:
+Production (Windows and Linux; this is what the Docker image will use, and the
+setting the perf benchmarks used):
 
 ```bash
-gunicorn -w 4 -b 0.0.0.0:5001 app:app
+waitress-serve --host=0.0.0.0 --port=5001 --threads=8 app:app
 ```
 
-Development:
+`waitress-serve` takes its port from `--port`, not `ML_SERVICE_PORT`.
+On Linux, `gunicorn -w 4 -b 0.0.0.0:5001 app:app` also works.
+
+Development (Flask dev server with debugger and reloader):
 
 ```bash
 FLASK_ENV=development python app.py
 ```
+
+The service has no CORS headers: only the backend calls it (via `ML_SERVICE_URL`),
+so it should not be exposed publicly.
 
 Default URL: `http://127.0.0.1:5001`
 
