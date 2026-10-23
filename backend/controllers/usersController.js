@@ -134,9 +134,15 @@ export const getUserProfile = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
+    // Contact details only for the user themselves or an admin; others (e.g. the
+    // marketplace showing a farmer) get public fields.
+    const canSeeContact = req.user.role === 'admin' || req.user.id === id;
+    const columns = canSeeContact
+      ? 'id, name, email, role, location, contact_number, profile_image, created_at'
+      : 'id, name, role, location, profile_image, created_at';
 
     const result = await pool.query(
-      `SELECT id, name, email, role, location, contact_number, profile_image, created_at
+      `SELECT ${columns}
        FROM users
        WHERE id = $1`,
       [id]
@@ -175,8 +181,9 @@ export const updateUserProfile = async (req, res) => {
            state = COALESCE($8, state),
            bio = COALESCE($9, bio),
            updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $10 
-       RETURNING *`,
+       WHERE id = $10
+       RETURNING id, name, email, role, location, contact_number, profile_image, kyc,
+                 address, city, state, bio, created_at, updated_at`,
       [name, email, updateLocation, updatePhone, profileImage, address, city, state, bio, userId]
     );
 

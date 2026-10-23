@@ -63,7 +63,7 @@ export const updateFarmerProfile = async (req, res) => {
        SET location = COALESCE(NULLIF($1, ''), location),
            contact_number = COALESCE(NULLIF($2, ''), contact_number)
        WHERE id = $3
-       RETURNING *`,
+       RETURNING id, location, contact_number`,
       [location || null, phone || null, farmerId]
     );
 
