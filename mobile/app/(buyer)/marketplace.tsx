@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -26,7 +26,7 @@ import { api } from '../../utils/api';
 interface FarmerInfo {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   location?: string;
   contact_number?: string;
 }
@@ -93,80 +93,84 @@ export default function MarketplaceScreen() {
   const [isOrderMode, setIsOrderMode] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalCrops, setTotalCrops] = useState(0);
+  const requestedFarmers = useRef(new Set<string>());
 
+  // Stable (no state deps) so it doesn't re-trigger the crop fetch effect
   const fetchFarmerInfo = useCallback(async (farmerId: string) => {
-    if (!farmerId || farmerInfo.has(farmerId)) return;
+    if (!farmerId || requestedFarmers.current.has(farmerId)) return;
+    requestedFarmers.current.add(farmerId);
     try {
       const farmer = (await api.get(`/users/${farmerId}`)) as FarmerInfo;
       setFarmerInfo((prev) => new Map(prev).set(farmerId, farmer));
     } catch {
       // Farmer info is optional for card rendering.
     }
-  }, [farmerInfo]);
+  }, []);
 
-  const fetchListedCrops = useCallback(async () => {
+  // Fetches one page of listed crops; search and category are filtered server-side.
+  // Page 1 replaces the list, later pages append (infinite scroll).
+  const fetchListedCrops = useCallback(async (pageToLoad: number) => {
     try {
-      setLoading(true);
+      setIsFetching(true);
       setError(null);
 
-      const data = await api.get('/crops');
-      const crops = Array.isArray(data)
-        ? (data as ApiCrop[])
-        : Array.isArray((data as { crops?: ApiCrop[] })?.crops)
-        ? ((data as { crops: ApiCrop[] }).crops)
-        : [];
+      const params = new URLSearchParams({ page: String(pageToLoad), limit: '20' });
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (selectedCategory !== 'all') params.set('category', selectedCategory);
 
-      const listed = crops.filter((crop) => crop.status === 'listed');
-      setRawListedCrops(listed);
-      setListedCrops(listed.map(mapCrop));
+      const data = (await api.get(`/crops?${params.toString()}`)) as {
+        crops?: ApiCrop[];
+        pagination?: { total: number; totalPages: number };
+      };
+      const crops = data.crops || [];
 
-      listed.forEach((crop) => {
+      setRawListedCrops((prev) => (pageToLoad === 1 ? crops : [...prev, ...crops]));
+      setListedCrops((prev) => (pageToLoad === 1 ? crops.map(mapCrop) : [...prev, ...crops.map(mapCrop)]));
+      setPage(pageToLoad);
+      setTotalPages(data.pagination?.totalPages ?? 1);
+      setTotalCrops(data.pagination?.total ?? crops.length);
+
+      crops.forEach((crop) => {
         void fetchFarmerInfo(crop.farmer_id);
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load marketplace crops');
-      setRawListedCrops([]);
-      setListedCrops([]);
+      if (pageToLoad === 1) {
+        setRawListedCrops([]);
+        setListedCrops([]);
+      }
     } finally {
+      setIsFetching(false);
       setLoading(false);
     }
-  }, [fetchFarmerInfo]);
+  }, [debouncedSearch, selectedCategory, fetchFarmerInfo]);
 
+  // Debounce typing so each keystroke doesn't hit the API
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Reload from page 1 on focus and whenever search/category change
   useFocusEffect(
     useCallback(() => {
-      void fetchListedCrops();
+      void fetchListedCrops(1);
     }, [fetchListedCrops])
   );
 
-  const filteredRawCrops = useMemo(() => {
-    return rawListedCrops.filter((crop) => {
-      const name = (crop.name || '').toLowerCase();
-      const description = (crop.description || '').toLowerCase();
-      const tac = (crop.tac || '').toLowerCase();
+  const loadMore = () => {
+    if (!isFetching && page < totalPages) {
+      void fetchListedCrops(page + 1);
+    }
+  };
 
-      if (
-        searchTerm &&
-        !name.includes(searchTerm.toLowerCase()) &&
-        !description.includes(searchTerm.toLowerCase())
-      ) {
-        return false;
-      }
-
-      if (selectedCategory !== 'all') {
-        const category = selectedCategory.toLowerCase();
-        const pluralCategory = `${category}s`;
-        const matched =
-          name.includes(category) ||
-          name.includes(pluralCategory) ||
-          tac.includes(category) ||
-          tac.includes(pluralCategory);
-        if (!matched) return false;
-      }
-
-      return true;
-    });
-  }, [rawListedCrops, searchTerm, selectedCategory]);
+  const filteredRawCrops = rawListedCrops;
 
   const filteredCrops = useMemo(() => filteredRawCrops.map(mapCrop), [filteredRawCrops]);
 
@@ -197,7 +201,7 @@ export default function MarketplaceScreen() {
         Number(avgPrice.toFixed(2)),
         0,
         0,
-        rawListedCrops.length,
+        totalCrops,
         matchingCrops.filter((crop) => Number(crop.price || 0) > avgPrice).length,
         matchingCrops.filter((crop) => Number(crop.price || 0) <= avgPrice).length,
         totalQuantity,
@@ -207,7 +211,7 @@ export default function MarketplaceScreen() {
         1,
       ],
     };
-  }, [filteredRawCrops, rawListedCrops.length, searchTerm, selectedCategory]);
+  }, [filteredRawCrops, totalCrops, searchTerm, selectedCategory]);
 
   const selectedFarmer = selectedCrop ? farmerInfo.get(selectedCrop.farmer_id) : null;
 
@@ -308,12 +312,21 @@ export default function MarketplaceScreen() {
         columnWrapperStyle={styles.gridRow}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.gridContent}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
         ListEmptyComponent={
           <Card>
             <CardContent>
-              <Text style={styles.emptyText}>No crops match the selected filters.</Text>
+              <Text style={styles.emptyText}>
+                {isFetching ? 'Loading crops...' : 'No crops match the selected filters.'}
+              </Text>
             </CardContent>
           </Card>
+        }
+        ListFooterComponent={
+          isFetching && filteredCrops.length > 0 ? (
+            <Text style={styles.emptyText}>Loading more...</Text>
+          ) : null
         }
         renderItem={({ item }) => (
           <View style={styles.gridItem}>

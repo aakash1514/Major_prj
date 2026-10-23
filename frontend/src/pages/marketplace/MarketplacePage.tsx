@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronDown, ChevronUp, Filter, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -26,7 +26,7 @@ interface Crop {
 interface FarmerInfo {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   location?: string;
   contact_number?: string;
 }
@@ -79,28 +79,16 @@ export const MarketplacePage: React.FC = () => {
 
   const marketInsightCropLabel = getCategoryLabel(filters.category);
 
+  const [page, setPage] = useState(1);
+  const [totalCrops, setTotalCrops] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [isLoadingCrops, setIsLoadingCrops] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const requestedFarmers = useRef(new Set<string>());
+
   const marketDemandInput = useMemo(() => {
-    const matchingCrops = listedCrops.filter((crop) => {
-      if (searchTerm && !crop.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-          !crop.description?.toLowerCase().includes(searchTerm.toLowerCase())) {
-        return false;
-      }
-
-      if (filters.minPrice && crop.price && crop.price < parseInt(filters.minPrice, 10)) {
-        return false;
-      }
-
-      if (filters.maxPrice && crop.price && crop.price > parseInt(filters.maxPrice, 10)) {
-        return false;
-      }
-
-      if (filters.category !== 'all') {
-        const isMatch = crop.name.toLowerCase().includes(filters.category.toLowerCase());
-        if (!isMatch) return false;
-      }
-
-      return true;
-    });
+    // Search, category and price filters are applied by the server, so the loaded crops already match.
+    const matchingCrops = listedCrops;
 
     const avgPrice = matchingCrops.length
       ? matchingCrops.reduce((sum, crop) => sum + (crop.price || 0), 0) / matchingCrops.length
@@ -122,7 +110,7 @@ export const MarketplacePage: React.FC = () => {
         Number(avgPrice.toFixed(2)),
         parseInt(filters.minPrice || '0', 10) || 0,
         parseInt(filters.maxPrice || '0', 10) || 0,
-        listedCrops.length,
+        totalCrops,
         matchingCrops.filter((crop) => (crop.price || 0) > avgPrice).length,
         matchingCrops.filter((crop) => (crop.price || 0) <= avgPrice).length,
         totalQuantity,
@@ -130,17 +118,31 @@ export const MarketplacePage: React.FC = () => {
         1,
       ],
     };
-  }, [filters.category, filters.maxPrice, filters.minPrice, listedCrops, searchTerm]);
+  }, [filters.category, filters.maxPrice, filters.minPrice, listedCrops, searchTerm, totalCrops]);
 
-  // Fetch crops on mount
+  // Debounce typing so each keystroke doesn't hit the API
   useEffect(() => {
-    fetchListedCrops();
-  }, []);
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-  const fetchListedCrops = async () => {
+  // Any filter or sort change starts again from page 1
+  useEffect(() => {
+    fetchListedCrops(1);
+  }, [debouncedSearch, filters.category, filters.minPrice, filters.maxPrice, sortBy]);
+
+  // Fetches one page of listed crops; page 1 replaces the list, later pages append ("Load more")
+  const fetchListedCrops = async (pageToLoad: number) => {
     try {
+      setIsLoadingCrops(true);
+      const params = new URLSearchParams({ page: String(pageToLoad), limit: '20', sort: sortBy });
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (filters.category !== 'all') params.set('category', filters.category);
+      if (filters.minPrice) params.set('minPrice', filters.minPrice);
+      if (filters.maxPrice) params.set('maxPrice', filters.maxPrice);
+
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/crops`, {
+      const response = await fetch(`${API_URL}/crops?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'ngrok-skip-browser-warning': 'true',
@@ -153,19 +155,23 @@ export const MarketplacePage: React.FC = () => {
       }
 
       const data = await response.json();
-      console.log('📥 Fetched all crops:', data);
-      
-      // Filter only listed crops
-      const crops = Array.isArray(data) ? data : data.crops || [];
-      const listed = crops.filter((crop: Crop) => crop.status === 'listed');
-      setListedCrops(listed);
+      const crops: Crop[] = data.crops || [];
+      setListedCrops((prev) => (pageToLoad === 1 ? crops : [...prev, ...crops]));
+      setPage(pageToLoad);
+      setTotalCrops(data.pagination?.total ?? crops.length);
+      setTotalPages(data.pagination?.totalPages ?? 1);
 
-      // Fetch farmer info for each crop
-      for (const crop of listed) {
-        fetchFarmerInfo(crop.farmer_id);
+      // Fetch farmer info once per farmer
+      for (const crop of crops) {
+        if (!requestedFarmers.current.has(crop.farmer_id)) {
+          requestedFarmers.current.add(crop.farmer_id);
+          fetchFarmerInfo(crop.farmer_id);
+        }
       }
     } catch (error) {
       console.error('Error fetching crops:', error);
+    } finally {
+      setIsLoadingCrops(false);
     }
   };
 
@@ -187,48 +193,9 @@ export const MarketplacePage: React.FC = () => {
       console.error('Error fetching farmer info:', error);
     }
   };
-  
-  // Apply filters and search
-  const filteredCrops = listedCrops.filter(crop => {
-    // Search filter
-    if (searchTerm && !crop.name.toLowerCase().includes(searchTerm.toLowerCase()) && 
-        !crop.description?.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
-    }
-    
-    // Price filter
-    if (filters.minPrice && crop.price && crop.price < parseInt(filters.minPrice)) {
-      return false;
-    }
-    if (filters.maxPrice && crop.price && crop.price > parseInt(filters.maxPrice)) {
-      return false;
-    }
-    
-    // Category filter - in a real app, you'd have proper categorization
-    if (filters.category !== 'all') {
-      // This is just a placeholder for demonstration
-      const isMatch = crop.name.toLowerCase().includes(filters.category.toLowerCase());
-      if (!isMatch) return false;
-    }
-    
-    return true;
-  });
-  
-  // Sort crops
-  const sortedCrops = [...filteredCrops].sort((a, b) => {
-    switch (sortBy) {
-      case 'price-low':
-        return (a.price || 0) - (b.price || 0);
-      case 'price-high':
-        return (b.price || 0) - (a.price || 0);
-      case 'name':
-        return a.name.localeCompare(b.name);
-      case 'newest':
-      default:
-        // This would normally sort by listing date
-        return 0;
-    }
-  });
+
+  // Search, filters and sorting are applied server-side (GET /api/crops query params)
+  const sortedCrops = listedCrops;
 
   const handlePlaceOrder = async (crop: Crop) => {
     if (!user || user.role !== 'buyer') {
@@ -432,7 +399,11 @@ export const MarketplacePage: React.FC = () => {
       <div>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Available Crops</h2>
-          <span className="text-gray-500">{sortedCrops.length} results</span>
+          <span className="text-gray-500">
+            {totalCrops > sortedCrops.length
+              ? `Showing ${sortedCrops.length} of ${totalCrops} results`
+              : `${totalCrops} results`}
+          </span>
         </div>
         
         {sortedCrops.length > 0 ? (
@@ -501,6 +472,8 @@ export const MarketplacePage: React.FC = () => {
               );
             })}
           </div>
+        ) : isLoadingCrops ? (
+          <div className="text-center py-12 text-gray-500">Loading crops...</div>
         ) : (
           <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
             <p className="text-gray-500 mb-2">No crops match your search criteria.</p>
@@ -512,6 +485,14 @@ export const MarketplacePage: React.FC = () => {
               }}
             >
               Clear Filters
+            </Button>
+          </div>
+        )}
+
+        {page < totalPages && sortedCrops.length > 0 && (
+          <div className="flex justify-center mt-6">
+            <Button variant="outline" onClick={() => fetchListedCrops(page + 1)} disabled={isLoadingCrops}>
+              {isLoadingCrops ? 'Loading...' : 'Load more'}
             </Button>
           </div>
         )}

@@ -83,23 +83,12 @@ export default function BuyerOrdersScreen() {
       setLoading(true);
       setError(null);
 
-      const [ordersRes, cropsRes] = await Promise.all([
-        api.get('/buyers/orders') as Promise<any[]>,
-        api.get('/crops').catch(() => [] as any[]),
-      ]);
-
-      const crops = Array.isArray(cropsRes)
-        ? cropsRes
-        : Array.isArray((cropsRes as { crops?: any[] })?.crops)
-        ? (cropsRes as { crops: any[] }).crops
-        : [];
-      const cropNameMap = new Map<string, string>(
-        crops.map((crop) => [String(crop.id), String(crop.name || 'Unknown Crop')])
-      );
+      // /buyers/orders includes crop_name, so no separate crop lookup is needed
+      const ordersRes = (await api.get('/buyers/orders')) as any[];
 
       const normalized = normalizeOrders(Array.isArray(ordersRes) ? ordersRes : []).map((order) => ({
         ...order,
-        cropName: order.cropName || cropNameMap.get(order.cropId) || 'Unknown Crop',
+        cropName: order.cropName || 'Unknown Crop',
       }));
       setOrders(normalized);
     } catch (err) {

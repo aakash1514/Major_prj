@@ -1,20 +1,76 @@
 import pool from '../db.js';
 
-// Get all crops
+const CROP_SORTS = {
+  newest: 'created_at DESC',
+  'price-low': 'price ASC NULLS LAST, created_at DESC',
+  'price-high': 'price DESC NULLS LAST, created_at DESC',
+  name: 'name ASC, created_at DESC',
+};
+
+// Escape LIKE wildcards so user input matches literally
+const likePattern = (value) => `%${String(value).replace(/[\\%_]/g, '\\$&')}%`;
+
+// Public marketplace listing: listed crops only, paginated, with optional
+// ?search= (name/description), ?category= (name/tac), ?minPrice=, ?maxPrice=, ?sort=
 export const getAllCrops = async (req, res) => {
   try {
-    console.log('📥 Fetching all crops for admin...');
-    const result = await pool.query(
-      'SELECT * FROM crops ORDER BY created_at DESC'
-    );
-    console.log('✅ Found', result.rows.length, 'crops');
-    // Convert price from string to number
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+    const offset = (page - 1) * limit;
+
+    const values = ['listed'];
+    const conditions = ['status = $1'];
+
+    const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+    if (search) {
+      values.push(likePattern(search));
+      conditions.push(`(name ILIKE $${values.length} OR description ILIKE $${values.length})`);
+    }
+
+    const category = typeof req.query.category === 'string' ? req.query.category.trim() : '';
+    if (category && category !== 'all') {
+      values.push(likePattern(category));
+      conditions.push(`(name ILIKE $${values.length} OR tac ILIKE $${values.length})`);
+    }
+
+    const minPrice = parseFloat(req.query.minPrice);
+    if (Number.isFinite(minPrice)) {
+      values.push(minPrice);
+      conditions.push(`price >= $${values.length}`);
+    }
+
+    const maxPrice = parseFloat(req.query.maxPrice);
+    if (Number.isFinite(maxPrice)) {
+      values.push(maxPrice);
+      conditions.push(`price <= $${values.length}`);
+    }
+
+    const where = conditions.join(' AND ');
+    const orderBy = CROP_SORTS[req.query.sort] || CROP_SORTS.newest;
+
+    const [result, countResult] = await Promise.all([
+      pool.query(
+        `SELECT * FROM crops WHERE ${where} ORDER BY ${orderBy} LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+        [...values, limit, offset]
+      ),
+      pool.query(`SELECT COUNT(*)::int AS total FROM crops WHERE ${where}`, values)
+    ]);
+
     const crops = result.rows.map(crop => ({
       ...crop,
       price: parseFloat(crop.price) || 0,
       quantity: parseInt(crop.quantity) || 0
     }));
-    res.json(crops);
+
+    res.json({
+      crops,
+      pagination: {
+        page,
+        limit,
+        total: countResult.rows[0].total,
+        totalPages: Math.ceil(countResult.rows[0].total / limit)
+      }
+    });
   } catch (err) {
     console.error('❌ Get crops error:', err);
     res.status(500).json({ error: 'Failed to fetch crops' });

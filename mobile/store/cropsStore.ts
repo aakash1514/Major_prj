@@ -21,8 +21,9 @@ export const useCropsStore = create<CropsState>((set) => ({
   fetchCrops: async () => {
     set({ isLoading: true, error: null });
     try {
+      // First page of listed crops ({ crops, pagination })
       const response = await api.get('/crops');
-      set({ crops: response.data || response, isLoading: false });
+      set({ crops: response.crops || [], isLoading: false });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch crops',

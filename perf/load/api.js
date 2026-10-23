@@ -39,9 +39,11 @@ function login(emailAddr) {
 }
 
 export function setup() {
-  const crops = http.get(`${BASE}/api/crops`, { timeout: '120s' });
+  const crops = http.get(`${BASE}/api/crops?limit=100`, { timeout: '120s' });
   if (crops.status !== 200) throw new Error(`setup GET /api/crops failed: ${crops.status}`);
-  const list = crops.json();
+  // Paginated { crops, pagination } since the crops-list fix; older backends return a bare array.
+  const body = crops.json();
+  const list = Array.isArray(body) ? body : body.crops;
   const cropIds = list.map((c) => c.id);
   const cropPrices = list.map((c) => Number(c.price) || 1);
   const buyerTokens = [];

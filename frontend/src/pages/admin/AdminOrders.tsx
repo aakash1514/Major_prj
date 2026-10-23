@@ -23,6 +23,7 @@ interface Order {
   id: string;
   buyer_id: string;
   crop_id: string;
+  crop_name?: string;
   status: string;
   payment_status: string;
   paid_to_farmer?: boolean;
@@ -55,7 +56,7 @@ export const AdminOrders: React.FC = () => {
   const [sortBy, setSortBy] = useState('newest');
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [crops, setCrops] = useState<Crop[]>([]);
+  const [selectedCrop, setSelectedCrop] = useState<Crop | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string>('');
   const [loadingOrders, setLoadingOrders] = useState(true);
@@ -72,6 +73,28 @@ export const AdminOrders: React.FC = () => {
   useEffect(() => {
     setSelectedAgent('');
   }, [selectedOrder]);
+
+  // Load the selected order's crop for the details modal (orders already carry crop_name for the list)
+  useEffect(() => {
+    setSelectedCrop(null);
+    const order = selectedOrder ? orders.find(o => o.id === selectedOrder) : null;
+    if (!order) return;
+
+    let cancelled = false;
+    fetch(`${API_URL}/crops/${order.crop_id}`, {
+      headers: { 'ngrok-skip-browser-warning': 'true' }
+    })
+      .then(res => (res.ok ? res.json() : null))
+      .then(crop => {
+        if (!cancelled) setSelectedCrop(crop);
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedCrop(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedOrder, orders]);
 
   const fetchAllData = async () => {
     try {
@@ -95,25 +118,6 @@ export const AdminOrders: React.FC = () => {
         setOrders(ordersArray);
       } else {
         setOrders([]);
-      }
-
-      // Fetch all crops
-      const cropsRes = await fetch(`${API_URL}/crops`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'ngrok-skip-browser-warning': 'true',
-        }
-      });
-      if (cropsRes.ok) {
-        const cropsData = await cropsRes.json();
-        const cropsArray = Array.isArray(cropsData)
-          ? cropsData
-          : Array.isArray(cropsData?.crops)
-            ? cropsData.crops
-            : [];
-        setCrops(cropsArray);
-      } else {
-        setCrops([]);
       }
 
       // Fetch agents
@@ -213,9 +217,8 @@ export const AdminOrders: React.FC = () => {
   // Filter and sort
   const safeOrders = Array.isArray(orders) ? orders : [];
   const filteredOrders = safeOrders.filter(order => {
-    const crop = crops.find(c => c.id === order.crop_id);
     const matchesSearch =
-      crop?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.crop_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.buyer_id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
@@ -244,7 +247,6 @@ export const AdminOrders: React.FC = () => {
   };
 
   const selectedOrderData = selectedOrder ? safeOrders.find(o => o.id === selectedOrder) : null;
-  const selectedCrop = selectedOrderData ? crops.find(c => c.id === selectedOrderData.crop_id) : null;
   const selectedAgentData = selectedAgent ? agents.find(a => a.id === selectedAgent) : null;
 
   if (loadingOrders) {
@@ -337,7 +339,6 @@ export const AdminOrders: React.FC = () => {
       {sortedOrders.length > 0 ? (
         <div className="space-y-4">
           {sortedOrders.map((order, index) => {
-            const crop = crops.find(c => c.id === order.crop_id);
             const transporter = order.transporter_id ? agents.find(a => a.id === order.transporter_id) : null;
 
             return (
@@ -357,7 +358,7 @@ export const AdminOrders: React.FC = () => {
                             <h3 className="text-lg font-semibold text-gray-900">
                               Order #{order.id.substring(0, 8)}
                             </h3>
-                            <p className="text-gray-600">{crop?.name || 'Unknown Crop'}</p>
+                            <p className="text-gray-600">{order.crop_name || 'Unknown Crop'}</p>
                           </div>
                           <StatusBadge status={order.status} />
                         </div>
