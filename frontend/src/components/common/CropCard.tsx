@@ -4,7 +4,7 @@ import { Card, CardContent, CardFooter } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Crop } from '../../types';
-import { API_URL } from '../../../../shared/apiConfig';
+import { API_URL } from '../../config';
 
 interface CropCardProps {
   crop: Crop;

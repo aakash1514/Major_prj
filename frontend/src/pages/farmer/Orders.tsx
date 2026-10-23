@@ -11,7 +11,7 @@ import { Select } from '../../components/ui/Select';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore } from '../../store/authStore';
-import { API_URL } from '../../../../shared/apiConfig';
+import { API_URL } from '../../config';
 
 interface FarmerOrder {
   id: string;

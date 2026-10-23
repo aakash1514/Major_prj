@@ -12,7 +12,7 @@ import { Select } from '../../components/ui/Select';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useCropsStore } from '../../store/cropsStore';
 import { api } from '../../utils/api';
-import { API_URL } from '../../../../shared/apiConfig';
+import { API_URL } from '../../config';
 
 interface PricePredictionResult {
   prediction: number | null;

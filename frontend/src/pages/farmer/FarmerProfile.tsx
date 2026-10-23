@@ -13,7 +13,7 @@ import { Textarea } from '../../components/ui/Textarea';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../utils/api'; // Import api for additional profile details
-import { API_URL } from '../../../../shared/apiConfig';
+import { API_URL } from '../../config';
 
 // Interface representing farmer profile fields
 interface ProfileFormData {

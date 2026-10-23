@@ -11,7 +11,7 @@ import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Badge } from '../../components/ui/Badge';
-import { API_URL } from '../../../../shared/apiConfig';
+import { API_URL } from '../../config';
 
 interface Order {
   id: string;

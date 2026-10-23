@@ -10,7 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { PredictionPanel } from '../../components/common/PredictionPanel';
 import { StatusBadge } from '../../components/ui/StatusBadge';
-import { API_URL } from '../../../../shared/apiConfig';
+import { API_URL } from '../../config';
 
 const encodeStringToNumber = (value: string) => {
   return value

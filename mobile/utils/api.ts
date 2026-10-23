@@ -18,7 +18,7 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
-import { API_BASE_URL, API_URL } from '../../shared/apiConfig';
+import { normalizeApiUrl, toBaseUrl } from '../../shared/apiConfig';
 
 // ─── NETWORK CONFIG ─────────────────────────────────────────────────────────
 // For Expo Go on a physical device: set this to your machine's local IP.
@@ -29,7 +29,9 @@ import { API_BASE_URL, API_URL } from '../../shared/apiConfig';
 // For iOS simulator:    use 'localhost'
 // For physical device:  use '192.168.X.X'  ← put your local IP here
 
-export { API_BASE_URL };
+// Set EXPO_PUBLIC_API_URL in mobile/.env (see .env.example).
+export const API_URL = normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL);
+export const API_BASE_URL = toBaseUrl(API_URL);
 
 /**
  * Makes authenticated API requests to the backend

@@ -7,7 +7,7 @@ import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { PredictionPanel } from '../../components/common/PredictionPanel';
 import { useAuthStore } from '../../store/authStore';
-import { API_URL } from '../../../../shared/apiConfig';
+import { API_URL } from '../../config';
 
 interface Crop {
   id: string;

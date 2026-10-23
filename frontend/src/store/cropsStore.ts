@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Crop, QualityReport, MarketplaceListing } from '../types';
-import { API_URL } from '../../../shared/apiConfig';
+import { API_URL } from '../config';
 
 interface CropsState {
   crops: Crop[];

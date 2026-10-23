@@ -1,7 +1,7 @@
 // Remove unused import
 // import { useAuthStore } from '../store/authStore';
 
-import { API_URL } from '../../../shared/apiConfig';
+import { API_URL } from '../config';
 
 /**
  * Makes authenticated API requests to the backend

@@ -13,7 +13,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useCropsStore } from '../../store/cropsStore';
 import { usePredictionsStore } from '../../store/predictionsStore';
 import { Crop } from '../../types';
-import { API_URL } from '../../../../shared/apiConfig';
+import { API_URL } from '../../config';
 
 interface AddCropFormData {
   name: string;

@@ -12,7 +12,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore } from '../../store/authStore';
 import { createOrderPayment, verifyOrderPayment } from '../../api/payment';
-import { API_URL } from '../../../../shared/apiConfig';
+import { API_URL } from '../../config';
 
 interface BuyerOrder {
   id: string;

@@ -7,7 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { CropCard } from '../../components/common/CropCard';
 import { PredictionPanel } from '../../components/common/PredictionPanel';
 import { useAuthStore } from '../../store/authStore';
-import { API_URL } from '../../../../shared/apiConfig';
+import { API_URL } from '../../config';
 
 interface DashboardStats {
   totalOrders: number;

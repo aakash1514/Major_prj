@@ -21,7 +21,7 @@ import { CropCard } from '../../components/common/CropCard';
 import { useAuthStore } from '../../store/authStore';
 import { usePredictionsStore } from '../../store/predictionsStore';
 import { api } from '../../utils/api';
-import { API_URL } from '../../../../shared/apiConfig';
+import { API_URL } from '../../config';
 
 // Register ChartJS components
 ChartJS.register(

@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { useAuthStore } from '../../store/authStore';
-import { API_URL } from '../../../../shared/apiConfig';
+import { API_URL } from '../../config';
 
 export const AgentProfile: React.FC = () => {
   const { user } = useAuthStore();
