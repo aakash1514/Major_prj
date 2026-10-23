@@ -62,13 +62,17 @@ export const getAllCrops = async (req, res) => {
       quantity: parseInt(crop.quantity) || 0
     }));
 
+    const total = countResult.rows[0].total;
+    // Same values as `pagination`, for clients that read headers (exposed via CORS in index.js)
+    res.set({ 'X-Total-Count': String(total), 'X-Page': String(page), 'X-Limit': String(limit) });
+
     res.json({
       crops,
       pagination: {
         page,
         limit,
-        total: countResult.rows[0].total,
-        totalPages: Math.ceil(countResult.rows[0].total / limit)
+        total,
+        totalPages: Math.ceil(total / limit)
       }
     });
   } catch (err) {
