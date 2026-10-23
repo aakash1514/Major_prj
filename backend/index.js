@@ -1,6 +1,7 @@
+// Must stay the first import: loads .env before any module reads process.env.
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pool from './db.js';
@@ -15,9 +16,6 @@ import orderRoutes from './routes/orders.js';
 import agentRoutes from './routes/agent.js';
 import adminRoutes from './routes/admin.js';
 import predictionsRoutes from './routes/predictions.js';
-
-// Load environment variables
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,6 +84,10 @@ const startServer = async () => {
   try {
     if (!process.env.JWT_SECRET) {
       console.error('FATAL: JWT_SECRET environment variable is not set');
+      process.exit(1);
+    }
+    if (process.env.NODE_ENV === 'production' && process.env.JWT_SECRET.length < 32) {
+      console.error('FATAL: JWT_SECRET too short for production (min 32 chars)');
       process.exit(1);
     }
 
