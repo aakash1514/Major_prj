@@ -18,7 +18,7 @@ router.get('/deliveries', authenticateToken, requireRole('agent'), agentControll
 router.put('/deliveries/:deliveryId', authenticateToken, requireRole('agent'), agentController.updateDeliveryStatus);
 
 // Get all agents (admin only)
-router.get('/list', authenticateToken, agentController.getAllAgents);
+router.get('/list', authenticateToken, requireRole('admin'), agentController.getAllAgents);
 
 // Get agent's assigned deliveries
 router.get('/my-deliveries', authenticateToken, requireRole('agent'), agentController.getAgentDeliveries);
