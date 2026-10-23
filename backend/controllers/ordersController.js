@@ -167,11 +167,65 @@ export const getOrderById = async (req, res) => {
   }
 };
 
+const ORDER_STATUSES = ['pending', 'confirmed', 'assigned', 'in-transit', 'delivered'];
+const AGENT_ORDER_STATUSES = ['assigned', 'in-transit', 'delivered'];
+
 // Update order status
+// admin: any field; agent: delivery fields on orders assigned to them;
+// farmer: pending -> confirmed on orders for their own crops.
 export const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
+    const { role, id: userId } = req.user;
     const { status, paymentStatus, transporter_id, deliveryNotes, deliveryProof } = req.body;
+
+    const check = await pool.query(
+      'SELECT o.status, o.transporter_id, c.farmer_id FROM orders o JOIN crops c ON o.crop_id = c.id WHERE o.id = $1',
+      [id]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    const current = check.rows[0];
+
+    if (status !== undefined && !ORDER_STATUSES.includes(status)) {
+      return res.status(400).json({ error: `status must be one of: ${ORDER_STATUSES.join(', ')}` });
+    }
+    if (paymentStatus !== undefined && !PAYMENT_STATUSES.includes(paymentStatus)) {
+      return res.status(400).json({ error: `paymentStatus must be one of: ${PAYMENT_STATUSES.join(', ')}` });
+    }
+
+    if (role === 'agent') {
+      if (current.transporter_id !== userId) {
+        return res.status(403).json({ error: 'This order is not assigned to you' });
+      }
+      if (paymentStatus !== undefined || transporter_id !== undefined) {
+        return res.status(403).json({ error: 'Agents can only update delivery status' });
+      }
+      if (status !== undefined && !AGENT_ORDER_STATUSES.includes(status)) {
+        return res.status(403).json({ error: `Agents can only set: ${AGENT_ORDER_STATUSES.join(', ')}` });
+      }
+    } else if (role === 'farmer') {
+      if (current.farmer_id !== userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      if (status !== 'confirmed' || paymentStatus !== undefined || transporter_id !== undefined ||
+          deliveryNotes !== undefined || deliveryProof !== undefined) {
+        return res.status(403).json({ error: 'Farmers can only confirm orders' });
+      }
+      if (current.status !== 'pending') {
+        return res.status(400).json({ error: 'Only pending orders can be confirmed' });
+      }
+    } else if (role === 'admin') {
+      if (transporter_id !== undefined) {
+        const agent = await pool.query('SELECT 1 FROM users WHERE id = $1 AND role = $2', [transporter_id, 'agent']);
+        if (agent.rows.length === 0) {
+          return res.status(400).json({ error: 'transporter_id must be an agent' });
+        }
+      }
+    } else {
+      return res.status(403).json({ error: 'Access denied' });
+    }
 
     const result = await pool.query(
       `UPDATE orders

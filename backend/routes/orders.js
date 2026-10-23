@@ -15,7 +15,7 @@ router.post('/:id/payment/verify', authenticateUserOrCheckoutToken, requireRole(
 router.put('/:id/settle-farmer', authenticateToken, requireRole('admin'), ordersController.settleFarmerPayment);
 router.get('/:id/payment-status', authenticateToken, ordersController.getOrderPaymentStatus);
 router.get('/:id', authenticateToken, ordersController.getOrderById);
-router.put('/:id/status', authenticateToken, requireRole('admin', 'agent'), ordersController.updateOrderStatus);
+router.put('/:id/status', authenticateToken, requireRole('admin', 'agent', 'farmer'), ordersController.updateOrderStatus);
 router.put('/:id/payment', authenticateToken, requireRole('admin'), ordersController.updateOrderPayment);
 router.put('/:id/cancel', authenticateToken, ordersController.cancelOrder);
 
