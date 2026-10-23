@@ -172,20 +172,39 @@ export const updateOrderStatus = async (req, res) => {
   }
 };
 
-// Update order payment status
+const PAYMENT_STATUSES = ['pending', 'advance-paid', 'fully-paid'];
+
+// Update order payment status (admin only, e.g. offline payments)
 export const updateOrderPayment = async (req, res) => {
   try {
     const { id } = req.params;
     const { paymentStatus, advancePaid } = req.body;
+
+    if (!PAYMENT_STATUSES.includes(paymentStatus)) {
+      return res.status(400).json({ error: `paymentStatus must be one of: ${PAYMENT_STATUSES.join(', ')}` });
+    }
+
+    const previous = await pool.query('SELECT payment_status, advance_amount FROM orders WHERE id = $1', [id]);
+    if (previous.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
 
     const result = await pool.query(
       'UPDATE orders SET payment_status = $1, advance_amount = COALESCE($2, advance_amount), updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
       [paymentStatus, advancePaid, id]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
+    await createPaymentAuditEntry({
+      orderId: id,
+      actorId: req.user.id,
+      action: 'admin_payment_status_updated',
+      note: `Payment status set to ${paymentStatus} by admin`,
+      previousState: previous.rows[0],
+      nextState: {
+        payment_status: result.rows[0].payment_status,
+        advance_amount: result.rows[0].advance_amount
+      }
+    });
 
     res.json({
       message: 'Payment updated successfully',
