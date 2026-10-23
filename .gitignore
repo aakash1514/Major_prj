@@ -49,3 +49,7 @@ coverage/
 /frontend/node_modules/
 /backend/node_modules/
 ml models/models/price_predictor_xgb.pkl
+
+# Python
+__pycache__/
+*.py[cod]
