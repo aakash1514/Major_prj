@@ -1,8 +1,12 @@
+# Requires Python 3.12 (scikit-learn 1.4.2 has no wheels for 3.13+).
 flask
 gunicorn
 waitress==3.0.2
 joblib>=1.4,<2
 numpy>=1.24,<3
 pandas>=2.0,<3
+# Must match the versions the models were pickled with:
+#   price_predictor_xgb.pkl  -> sklearn RandomForestRegressor (150 trees), saved with scikit-learn 1.4.2
+#   demand_predictor_xgb.pkl -> xgboost XGBRegressor (gbtree), saved with xgboost 2.0.3
 scikit-learn==1.4.2
 xgboost==2.0.3

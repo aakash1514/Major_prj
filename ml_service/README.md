@@ -4,9 +4,16 @@ Flask wrapper service for existing trained models (no retraining).
 
 ## Install Dependencies
 
+Use Python 3.12: the pinned scikit-learn 1.4.2 has no wheels for Python 3.13+.
+
 ```bash
 pip install -r requirements.txt
 ```
+
+`scikit-learn` and `xgboost` are pinned to the versions the models were saved with
+(`price_predictor_xgb.pkl` is a scikit-learn RandomForestRegressor despite its name;
+`demand_predictor_xgb.pkl` is an XGBRegressor). Loading them with other versions
+logs `InconsistentVersionWarning` and is not guaranteed to give the same results.
 
 ## Configure Environment
 
