@@ -23,15 +23,24 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Server initialization message
-console.log('[SERVER] Initializing with CORS support for dev ports...');
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+console.log(`[SERVER] CORS allowed origins: ${allowedOrigins.join(', ')}`);
 
 // ─── MIDDLEWARE ──────────────────────────────────────────────────────────────
+// No Origin (mobile app, curl, server-to-server) is allowed. Disallowed origins get
+// no CORS headers (the browser blocks them) instead of an error, so same-origin
+// requests like the Razorpay checkout page's verify POST still reach their handler.
+// Auth is Bearer tokens, not cookies, so credentials stay off.
+// cors skips Vary for rejected origins; set it on every response so caches key on Origin.
+app.use((req, res, next) => { res.vary('Origin'); next(); });
 app.use(cors({
-  origin: (origin, callback) => {
-    callback(null, true); // Allow all origins — safe for local dev
-  },
-  credentials: true,
+  origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)),
+  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
+  exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Limit'],
 }));
 
 app.use(express.json({ limit: '50mb' }));
