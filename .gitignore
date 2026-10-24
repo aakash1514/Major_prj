@@ -55,3 +55,4 @@ ml models/models/price_predictor_xgb.pkl
 __pycache__/
 *.py[cod]
 .venv*/
+.venv*/
