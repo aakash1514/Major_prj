@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,7 +13,8 @@ app = Flask(__name__)
 
 # Root path: C:/Major_prj
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-MODEL_DIR = PROJECT_ROOT / "ml models" / "models"
+# MODELS_DIR is set in Docker (/models); local runs fall back to the repo copy.
+MODEL_DIR = Path(os.getenv("MODELS_DIR") or PROJECT_ROOT / "ml models" / "models")
 PRICE_MODEL_PATH = MODEL_DIR / "price_predictor_xgb.pkl"
 DEMAND_MODEL_PATH = MODEL_DIR / "demand_predictor_xgb.pkl"
 
@@ -27,15 +29,49 @@ def load_model(model_path: Path):
     return _model_cache[model_path]
 
 
+def download_models_from_s3():
+    """If MODELS_S3_BUCKET is set, fetch missing/changed .pkl files into MODEL_DIR.
+
+    Uses boto3's default credential chain (EC2 instance role in prod). A file whose
+    local size matches the S3 object is skipped, so restarts don't re-download.
+    """
+    bucket = os.getenv("MODELS_S3_BUCKET")
+    if not bucket:
+        return
+    import boto3  # only needed when S3 download is enabled
+
+    prefix = os.getenv("MODELS_S3_PREFIX", "").strip("/")
+    s3 = boto3.client("s3")
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+
+    for path in [PRICE_MODEL_PATH, DEMAND_MODEL_PATH]:
+        key = f"{prefix}/{path.name}" if prefix else path.name
+        part = path.with_name(path.name + ".part")
+        try:
+            remote_size = s3.head_object(Bucket=bucket, Key=key)["ContentLength"]
+            if path.exists() and path.stat().st_size == remote_size:
+                print(f"S3: {path.name} already cached ({remote_size} bytes), skipping", flush=True)
+                continue
+            t0 = time.monotonic()
+            s3.download_file(bucket, key, str(part))
+            os.replace(part, path)
+            secs = time.monotonic() - t0
+            print(f"S3: downloaded s3://{bucket}/{key} ({remote_size} bytes) in {secs:.1f}s", flush=True)
+        except Exception as e:
+            part.unlink(missing_ok=True)
+            print(f"ERROR: failed to fetch s3://{bucket}/{key}: {e}", flush=True)
+
+
 def preload_models():
     for path in [PRICE_MODEL_PATH, DEMAND_MODEL_PATH]:
         try:
             load_model(path)
-            print(f"✓ Loaded model: {path.name}")
+            print(f"✓ Loaded model: {path.name}", flush=True)
         except FileNotFoundError as e:
-            print(f"⚠ Model not found (will fail at request time): {e}")
+            print(f"ERROR: model missing (requests will fail, /health/models returns 503): {e}", flush=True)
 
 
+download_models_from_s3()
 preload_models()
 
 
@@ -209,7 +245,8 @@ def health_models():
     missing = sorted(
         path.name for path in expected_paths if not path.exists() or path not in _model_cache
     )
-    return jsonify({"loaded_models": loaded, "missing_models": missing})
+    # 503 lets Docker's healthcheck treat a missing model as unhealthy.
+    return jsonify({"loaded_models": loaded, "missing_models": missing}), (503 if missing else 200)
 
 
 @app.post("/predict/price")
