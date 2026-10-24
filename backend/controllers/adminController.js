@@ -123,14 +123,15 @@ export const getAllCrops = async (req, res) => {
 };
 
 // Approve crop
+// Approval is a review step and never changes the farmer's price; any price in
+// the body is ignored (clients have sent 0 here, which used to wipe the price).
 export const approveCrop = async (req, res) => {
   try {
     const { cropId } = req.params;
-    const { price } = req.body;
 
     const result = await pool.query(
-      'UPDATE crops SET status = $1, price = COALESCE($2, price), updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
-      ['approved', price, cropId]
+      'UPDATE crops SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      ['approved', cropId]
     );
 
     if (result.rows.length === 0) {
@@ -184,18 +185,30 @@ export const rejectCrop = async (req, res) => {
 export const listCropOnMarketplace = async (req, res) => {
   try {
     const { cropId } = req.params;
-    const { price, availability } = req.body;
+    const { price } = req.body;
 
-    console.log(`📤 Listing crop ${cropId} on marketplace with price: ${price}`);
+    // Only a positive number overrides the farmer's price; 0, negatives and
+    // non-numeric values keep the stored price.
+    const parsedPrice = Number(price);
+    const newPrice = price != null && price !== '' && Number.isFinite(parsedPrice) && parsedPrice > 0
+      ? parsedPrice
+      : null;
 
-    // Update crop status to 'listed' and use farmer's price (or update if new price provided)
+    console.log(`📤 Listing crop ${cropId} on marketplace with price: ${newPrice ?? 'unchanged'}`);
+
+    // Refuses to list a crop that would end up without a positive price.
     const result = await pool.query(
-      'UPDATE crops SET status = $1, price = COALESCE($2, price), updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
-      ['listed', price, cropId]
+      `UPDATE crops SET status = $1, price = COALESCE($2, price), updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3 AND COALESCE($2, price) > 0 RETURNING *`,
+      ['listed', newPrice, cropId]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Crop not found' });
+      const exists = await pool.query('SELECT 1 FROM crops WHERE id = $1', [cropId]);
+      if (exists.rows.length === 0) {
+        return res.status(404).json({ error: 'Crop not found' });
+      }
+      return res.status(400).json({ error: 'Crop has no valid price; set a positive price to list it' });
     }
 
     console.log('✅ Crop listed on marketplace successfully');

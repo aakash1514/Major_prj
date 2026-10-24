@@ -250,7 +250,8 @@ export const CropSubmissions: React.FC = () => {
           Authorization: `Bearer ${token}`,
           'ngrok-skip-browser-warning': 'true',
         },
-        body: JSON.stringify({ price: 0 })
+        // No price: approving keeps the farmer's price.
+        body: JSON.stringify({})
       });
 
       if (response.ok) {
@@ -285,8 +286,9 @@ export const CropSubmissions: React.FC = () => {
           Authorization: `Bearer ${token}`,
           'ngrok-skip-browser-warning': 'true',
         },
-        body: JSON.stringify({ 
-          price: crop.price,
+        // Omit a missing/zero price so the backend keeps the stored one.
+        body: JSON.stringify({
+          ...(crop.price && crop.price > 0 ? { price: crop.price } : {}),
           availability: 'available'
         })
       });
