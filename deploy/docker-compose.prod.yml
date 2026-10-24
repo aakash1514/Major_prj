@@ -7,6 +7,10 @@
 #     instance role needs logs:CreateLogStream + logs:PutLogEvents on them.
 #   - The instance role needs s3:GetObject on the models bucket/prefix.
 #
+# Memory: mem_limits total ~2.4 GiB of the 4 GB t3.medium, leaving room for the OS,
+# dockerd and the CloudWatch log driver. Peaks were measured locally with docker stats
+# + cgroup memory.peak.
+#
 # Usage (from repo root):
 #   docker compose -f deploy/docker-compose.prod.yml up --build -d
 
@@ -25,7 +29,7 @@ services:
       - "5001"
     volumes:
       - ml-models:/models   # S3 model cache; survives restarts so models aren't re-downloaded
-    mem_limit: 2560m        # provisional; finalised from docker stats in Part D
+    mem_limit: 2048m        # measured peak 522 MiB (load + 20-VU price predictions); headroom for the 1.9 GiB seen natively
     logging:
       driver: awslogs
       options:
@@ -44,7 +48,7 @@ services:
     depends_on:
       ml:
         condition: service_healthy
-    mem_limit: 512m         # provisional
+    mem_limit: 384m         # measured peak 54 MiB at 50 VUs; headroom for 50 MB JSON bodies
     logging:
       driver: awslogs
       options:
@@ -72,7 +76,7 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
-    mem_limit: 64m          # provisional
+    mem_limit: 64m          # measured peak 20 MiB
     logging:
       driver: awslogs
       options:
