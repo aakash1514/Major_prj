@@ -1,0 +1,10 @@
+*.pkl
+**/*.pkl
+.venv*
+__pycache__
+**/__pycache__
+.env*
+notebooks
+Dockerfile
+.dockerignore
+*.md
