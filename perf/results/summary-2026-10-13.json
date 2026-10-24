@@ -9,7 +9,13 @@
   "commits": {
     "before": "2e2a563",
     "after": "e3e1155",
-    "after_includes": "0f151ee"
+    "after_includes": "0f151ee",
+    "crops_list": {
+      "before": "e3e1155",
+      "after": "f0d1acd",
+      "after_includes": "5c82e11",
+      "measured": "2026-10-24, back-to-back on a freshly re-seeded database"
+    }
   },
   "metrics": [
     {
@@ -35,6 +41,38 @@
       "unit": "KiB (1024 bytes)",
       "before": 6538.5546875,
       "after": 13.005859375
+    },
+    {
+      "name": "/api/crops p95 latency",
+      "unit": "ms",
+      "before": 3933.596700000002,
+      "after": 455.18045000000006,
+      "before_commit": "e3e1155",
+      "after_commit": "f0d1acd"
+    },
+    {
+      "name": "/api/crops throughput",
+      "unit": "req/s",
+      "before": 18.95,
+      "after": 261.28333333333336,
+      "before_commit": "e3e1155",
+      "after_commit": "f0d1acd"
+    },
+    {
+      "name": "/api/crops error rate (5xx + timeouts)",
+      "unit": "fraction",
+      "before": 0.4731750219876869,
+      "after": 0,
+      "before_commit": "e3e1155",
+      "after_commit": "f0d1acd"
+    },
+    {
+      "name": "/api/crops response size (one successful response)",
+      "unit": "KiB (1024 bytes)",
+      "before": 841.6455078125,
+      "after": 8.4697265625,
+      "before_commit": "e3e1155",
+      "after_commit": "f0d1acd"
     },
     {
       "name": "POST /predict/price median latency",

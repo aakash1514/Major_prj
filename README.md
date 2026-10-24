@@ -86,7 +86,10 @@ npx expo start
 
 ## Shared API Config
 
-Web and mobile use the shared config in [shared/apiConfig.ts](shared/apiConfig.ts). Update it if you use a custom host, LAN IP, or ngrok.
+Each app reads its API URL from its own env file, falling back to `http://localhost:5000/api` ([shared/apiConfig.ts](shared/apiConfig.ts)):
+
+- Web: `VITE_API_URL` in `frontend/.env` (see `frontend/.env.example`)
+- Mobile: `EXPO_PUBLIC_API_URL` in `mobile/.env` (see `mobile/.env.example`)
 
 ## Database
 
@@ -100,13 +103,13 @@ CREATE DATABASE agriflow;
 
 ## Optional: ngrok
 
-If you expose the backend with ngrok, update [shared/apiConfig.ts](shared/apiConfig.ts) to the current tunnel URL.
+If you expose the backend with ngrok, set `VITE_API_URL` / `EXPO_PUBLIC_API_URL` to `<tunnel URL>/api` and add the web app's origin to `ALLOWED_ORIGINS` in `backend/.env`.
 
 ## Troubleshooting
 
 - Port already in use: change the service port in its `.env` file or stop the process using that port.
 - CORS errors: ensure `ALLOWED_ORIGINS` in `backend/.env` includes your frontend URL (e.g., `http://localhost:5173`).
-- API not reachable from mobile: update [shared/apiConfig.ts](shared/apiConfig.ts) with your LAN IP or ngrok URL and restart the app.
+- API not reachable from mobile: set `EXPO_PUBLIC_API_URL` in `mobile/.env` to your LAN IP (e.g. `http://192.168.1.10:5000/api`; see `mobile/.env.example`) and restart Expo.
 
 ## Folder Overview
 
@@ -120,7 +123,9 @@ If you expose the backend with ngrok, update [shared/apiConfig.ts](shared/apiCon
 
 Measured with k6 load tests (50 concurrent users, 60 s runs, median of 3) against PostgreSQL seeded with 10,000 orders and 2,000 crops, all on localhost. ML rows: median of 200 sequential requests, median of 3 runs.
 
-Before = commit `2e2a563`, after = commit `e3e1155` (includes `0f151ee`), same seeded database and hardware.
+Admin orders and ML rows: before = commit `2e2a563`, after = commit `e3e1155` (includes `0f151ee`).
+`/api/crops` rows: before = commit `e3e1155`, after = commit `f0d1acd` (includes `5c82e11`), run back-to-back on a freshly re-seeded database.
+Same seeded data volumes and hardware throughout.
 
 | Metric | Before | After |
 |---|---:|---:|
@@ -128,10 +133,15 @@ Before = commit `2e2a563`, after = commit `e3e1155` (includes `0f151ee`), same s
 | `/api/admin/orders` throughput | 4.9 req/s | 81.5 req/s |
 | `/api/admin/orders` error rate | 38.7% | 0% |
 | `/api/admin/orders` response size | 6.4 MiB | 13 KiB |
+| `/api/crops` p95 latency | 3.93 s | 455 ms (8.6× faster) |
+| `/api/crops` throughput | 19.0 req/s | 261.3 req/s |
+| `/api/crops` error rate | 47.3% | 0% |
+| `/api/crops` response size | 842 KiB | 8.5 KiB |
 | Price prediction, median latency | 738.7 ms | 183.8 ms (4.0× faster) |
 | Demand prediction, median latency | 15.8 ms | 5.2 ms (3.0× faster) |
 
-- **Server-side pagination (LIMIT/OFFSET)** on the admin orders, crops and users endpoints.
-- **In-memory model caching** in the ML service: models load once at startup instead of on every request (both sides measured under waitress).
+- **Server-side pagination (LIMIT/OFFSET)** on the admin orders, admin crops and admin users endpoints.
+- **Server-side pagination with listed-only filtering** on the public `/api/crops` endpoint: 20 listed crops per page (max 100) instead of all 2,000 crops of every status.
+- **In-memory model caching** in the ML service: models load once at startup instead of on every request (both sides measured under waitress). The price model is a scikit-learn Random Forest and the demand model is XGBoost.
 
 Raw numbers: [perf/results/summary-2026-10-13.json](perf/results/summary-2026-10-13.json). To reproduce, see [perf/README.md](perf/README.md).
