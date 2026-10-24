@@ -1,0 +1,33 @@
+# Laptop override: json-file logs, local models, local Postgres (agriflow_perf).
+#
+#   export LOCAL_DATABASE_URL='postgresql://USER:PASSWORD@host.docker.internal:5432/agriflow_perf'
+#   docker compose -f deploy/docker-compose.prod.yml -f deploy/docker-compose.local.yml up --build -d
+#
+# deploy/.env (gitignored) must exist; copy deploy/.env.example and fill in
+# local-only values. nginx stays on host port 80 (8080 is often taken on Windows).
+
+x-local-logging: &local-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  ml:
+    environment:
+      MODELS_S3_BUCKET: ""   # empty = no S3 download; use the mounted models
+    volumes: !override
+      - "../ml models/models:/models:ro"
+    logging: !override
+      <<: *local-logging
+
+  backend:
+    environment:
+      DATABASE_URL: ${LOCAL_DATABASE_URL:?set LOCAL_DATABASE_URL to the local agriflow_perf URL via host.docker.internal}
+      DB_SSL: "false"
+    logging: !override
+      <<: *local-logging
+
+  nginx:
+    logging: !override
+      <<: *local-logging
