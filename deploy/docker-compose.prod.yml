@@ -29,7 +29,7 @@ services:
       - "5001"
     volumes:
       - ml-models:/models   # S3 model cache; survives restarts so models aren't re-downloaded
-    mem_limit: 2048m        # measured peak 522 MiB (load + 20-VU price predictions); headroom for the 1.9 GiB seen natively
+    mem_limit: 1200m        # measured peak 522 MiB (load + 20-VU price predictions); headroom for the 1.9 GiB seen natively
     logging:
       driver: awslogs
       options:
