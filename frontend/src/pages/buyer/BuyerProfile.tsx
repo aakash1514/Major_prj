@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { 
   User, MapPin, Phone, Mail, Edit, 
-  Save, X, Camera
+  Save, X, Camera, Loader2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -12,6 +12,8 @@ import { Textarea } from '../../components/ui/Textarea';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../utils/api';
+import { uploadImage } from '../../utils/uploadImage';
+import { API_URL } from '../../config';
 
 interface ProfileFormData {
   name: string;
@@ -31,10 +33,11 @@ interface BuyerProfileData {
 }
 
 export const BuyerProfile: React.FC = () => {
-  const { user } = useAuthStore();
+  const { user, updateUser } = useAuthStore();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [buyerProfile, setBuyerProfile] = useState<BuyerProfileData | null>(null);
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<ProfileFormData>({
@@ -119,14 +122,42 @@ export const BuyerProfile: React.FC = () => {
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfileImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const file = input.files?.[0];
+    // Reset so picking the same file again still fires onChange
+    input.value = '';
+    if (!file) return;
+
+    const previousImage = profileImage;
+    const previewUrl = URL.createObjectURL(file);
+    setProfileImage(previewUrl);
+    setIsUploadingImage(true);
+
+    try {
+      const publicUrl = await uploadImage(file, 'profile');
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/users/profile-image`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ profileImage: publicUrl }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error || `API error: ${response.status}`);
+      }
+      setProfileImage(result.profile_image);
+      updateUser({ profileImage: result.profile_image });
+    } catch (error) {
+      console.error('Profile image upload error:', error);
+      setProfileImage(previousImage);
+      alert('❌ Failed to update profile picture: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      URL.revokeObjectURL(previewUrl);
+      setIsUploadingImage(false);
     }
   };
 
@@ -178,13 +209,19 @@ export const BuyerProfile: React.FC = () => {
                         <User size={64} className="text-white" />
                       )}
                     </div>
+                    {isUploadingImage && (
+                      <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                        <Loader2 className="h-6 w-6 text-white animate-spin" />
+                      </div>
+                    )}
                     {isEditing && (
-                      <label className="absolute bottom-0 right-0 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2 cursor-pointer">
+                      <label className={`absolute bottom-0 right-0 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2 ${isUploadingImage ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                         <Camera size={16} />
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/jpeg,image/png,image/webp"
                           className="hidden"
+                          disabled={isUploadingImage}
                           onChange={handleImageUpload}
                         />
                       </label>

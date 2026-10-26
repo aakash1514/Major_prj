@@ -42,20 +42,8 @@ export const getFarmerProfile = async (req, res) => {
 export const updateFarmerProfile = async (req, res) => {
   try {
     const farmerId = req.user.id;
-    
-    console.log('📝 Raw req.body:', JSON.stringify(req.body));
-    console.log('📝 Raw req.body keys:', Object.keys(req.body));
-    
-    const { location, phone, bio, farm_size, experience, crop_preference } = req.body;
 
-    console.log('📝 Extracted fields:', {
-      location: `"${location}"`,
-      phone: `"${phone}"`,
-      bio: `"${bio}"`,
-      farm_size: `"${farm_size}"`,
-      experience: `"${experience}"`,
-      crop_preference: `"${crop_preference}"`
-    });
+    const { location, phone, bio, farm_size, experience, crop_preference } = req.body;
 
     // Update users table with location and phone
     const userUpdateResult = await pool.query(

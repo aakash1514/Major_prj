@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Users, ShoppingBag, Truck, AlertCircle, 
@@ -11,6 +11,7 @@ import { Badge } from '../../components/ui/Badge';
 import { PredictionPanel } from '../../components/common/PredictionPanel';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { API_URL } from '../../config';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 
 const encodeStringToNumber = (value: string) => {
   return value
@@ -129,14 +130,22 @@ export const AdminDashboard: React.FC = () => {
       .slice(0, 3);
   }, [stats]);
 
+  // Last fetched payload, so background refreshes only re-render when something changed
+  const lastStatsJson = useRef<string | null>(null);
+
   useEffect(() => {
     fetchDashboardStats();
   }, []);
 
-  const fetchDashboardStats = async () => {
+  // Keep the counts and recent activity current without a page reload
+  useAutoRefresh(() => fetchDashboardStats({ silent: true }));
+
+  const fetchDashboardStats = async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (!silent) {
+        setLoading(true);
+        setError(null);
+      }
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/admin/stats`, {
         headers: {
@@ -151,6 +160,10 @@ export const AdminDashboard: React.FC = () => {
       }
 
       const data = await response.json();
+      setError(null);
+      const dataJson = JSON.stringify(data);
+      if (dataJson === lastStatsJson.current) return;
+      lastStatsJson.current = dataJson;
       console.log('[AdminDashboard] API Response:', data);
       
       // Ensure arrays are always present
@@ -162,9 +175,10 @@ export const AdminDashboard: React.FC = () => {
       setStats(data);
     } catch (err) {
       console.error('Error fetching dashboard stats:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load dashboard statistics');
+      // A failed background refresh keeps showing the last good data
+      if (!silent) setError(err instanceof Error ? err.message : 'Failed to load dashboard statistics');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
   

@@ -35,7 +35,7 @@ export const updateBuyerProfile = async (req, res) => {
   const client = await pool.connect();
   try {
     const buyerId = req.user.id;
-    const { name, location, contactNumber, profileImage, companyName, businessType, preferences } = req.body;
+    const { name, location, contactNumber, companyName, businessType, preferences } = req.body;
 
     console.log('📝 Updating buyer profile for:', buyerId);
 
@@ -55,8 +55,8 @@ export const updateBuyerProfile = async (req, res) => {
 
     // Update user info with COALESCE(NULLIF(..., ''), existing_value) to handle empty strings
     await client.query(
-      'UPDATE users SET name = COALESCE(NULLIF($1, \'\'), name), location = COALESCE(NULLIF($2, \'\'), location), contact_number = COALESCE(NULLIF($3, \'\'), contact_number), profile_image = COALESCE(NULLIF($4, \'\'), profile_image) WHERE id = $5',
-      [name, location, contactNumber, profileImage, buyerId]
+      'UPDATE users SET name = COALESCE(NULLIF($1, \'\'), name), location = COALESCE(NULLIF($2, \'\'), location), contact_number = COALESCE(NULLIF($3, \'\'), contact_number) WHERE id = $4',
+      [name, location, contactNumber, buyerId]
     );
 
     console.log('✅ Users table updated');

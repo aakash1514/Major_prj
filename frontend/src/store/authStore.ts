@@ -11,6 +11,7 @@ interface User {
   role: string;
   name?: string;
   email?: string;
+  profileImage?: string;
 }
 
 interface AuthState {
@@ -22,6 +23,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   register: (data: any) => Promise<void>;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -69,6 +71,10 @@ export const useAuthStore = create<AuthState>()(
           });
         }
       },
+
+      // Merge changes into the logged-in user (e.g. a new profile picture) so the header updates immediately
+      updateUser: (updates) =>
+        set((state) => (state.user ? { user: { ...state.user, ...updates } } : {})),
     }),
     {
       name: 'auth-storage', // key in localStorage

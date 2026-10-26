@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Search, Eye, Package, Truck, CheckCircle, 
@@ -11,6 +11,7 @@ import { Select } from '../../components/ui/Select';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Badge } from '../../components/ui/Badge';
 import { API_URL } from '../../config';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 
 interface Agent {
   id: string;
@@ -63,11 +64,17 @@ export const AdminOrders: React.FC = () => {
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [assigningOrder, setAssigningOrder] = useState<string | null>(null);
   const [settlingOrder, setSettlingOrder] = useState<string | null>(null);
+  // Last fetched payloads, so background refreshes only re-render when something changed
+  const lastOrdersJson = useRef<string | null>(null);
+  const lastAgentsJson = useRef<string | null>(null);
 
   // Fetch initial data
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  // Pick up new orders and status changes without a page reload
+  useAutoRefresh(() => fetchAllData({ silent: true }));
 
   // Reset selected agent when order changes
   useEffect(() => {
@@ -96,9 +103,9 @@ export const AdminOrders: React.FC = () => {
     };
   }, [selectedOrder, orders]);
 
-  const fetchAllData = async () => {
+  const fetchAllData = async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
-      setLoadingOrders(true);
+      if (!silent) setLoadingOrders(true);
       const token = localStorage.getItem('token');
 
       // Fetch all orders
@@ -115,8 +122,13 @@ export const AdminOrders: React.FC = () => {
           : Array.isArray(ordersData?.orders)
             ? ordersData.orders
             : [];
-        setOrders(ordersArray);
-      } else {
+        const ordersJson = JSON.stringify(ordersArray);
+        if (ordersJson !== lastOrdersJson.current) {
+          lastOrdersJson.current = ordersJson;
+          setOrders(ordersArray);
+        }
+      } else if (!silent) {
+        lastOrdersJson.current = null;
         setOrders([]);
       }
 
@@ -134,14 +146,19 @@ export const AdminOrders: React.FC = () => {
           : Array.isArray(agentsData?.agents)
             ? agentsData.agents
             : [];
-        setAgents(agentsArray);
-      } else {
+        const agentsJson = JSON.stringify(agentsArray);
+        if (agentsJson !== lastAgentsJson.current) {
+          lastAgentsJson.current = agentsJson;
+          setAgents(agentsArray);
+        }
+      } else if (!silent) {
+        lastAgentsJson.current = null;
         setAgents([]);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
-      setLoadingOrders(false);
+      if (!silent) setLoadingOrders(false);
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Search, Eye, CheckCircle, X,
@@ -13,6 +13,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useCropsStore } from '../../store/cropsStore';
 import { api } from '../../utils/api';
 import { API_URL } from '../../config';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 
 interface PricePredictionResult {
   prediction: number | null;
@@ -63,11 +64,17 @@ export const CropSubmissions: React.FC = () => {
   const [sortBy, setSortBy] = useState('newest');
   const [selectedCrop, setSelectedCrop] = useState<string | null>(null);
   const [pricePredictions, setPricePredictions] = useState<Record<string, PricePredictionResult>>({});
+  // Last fetched payload: unchanged data must not touch the store, or every
+  // background refresh would re-run the AI price predictions for all crops
+  const lastCropsJson = useRef<string | null>(null);
 
   // Fetch crops on mount
   useEffect(() => {
     fetchAllCrops();
   }, []);
+
+  // Pick up new submissions and status changes without a page reload
+  useAutoRefresh(() => fetchAllCrops());
 
   useEffect(() => {
     let isCancelled = false;
@@ -179,6 +186,9 @@ export const CropSubmissions: React.FC = () => {
       }
       
       const data = await response.json();
+      const dataJson = JSON.stringify(data);
+      if (dataJson === lastCropsJson.current) return;
+      lastCropsJson.current = dataJson;
       console.log('📥 Fetched crops from backend:', data);
       
       // Backend returns array directly

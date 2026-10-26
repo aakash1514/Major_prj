@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import pool from '../db.js';
+import { isUploadsConfigured, uploadUrlPrefix } from '../services/uploads.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -163,7 +164,7 @@ export const getUserById = async (req, res) => {
 export const updateUserProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { name, email, location, contactNumber, profileImage, phone, address, city, state, bio } = req.body;
+    const { name, email, location, contactNumber, phone, address, city, state, bio } = req.body;
 
     // Support both old and new field names
     const updatePhone = phone || contactNumber;
@@ -175,16 +176,15 @@ export const updateUserProfile = async (req, res) => {
            email = COALESCE(NULLIF(TRIM($2), ''), email),
            location = COALESCE(NULLIF(TRIM($3), ''), location), 
            contact_number = COALESCE(NULLIF(TRIM($4), ''), contact_number), 
-           profile_image = COALESCE(NULLIF(TRIM($5), ''), profile_image),
-           address = COALESCE(NULLIF(TRIM($6), ''), address),
-           city = COALESCE(NULLIF(TRIM($7), ''), city),
-           state = COALESCE(NULLIF(TRIM($8), ''), state),
-           bio = COALESCE(NULLIF(TRIM($9), ''), bio),
+           address = COALESCE(NULLIF(TRIM($5), ''), address),
+           city = COALESCE(NULLIF(TRIM($6), ''), city),
+           state = COALESCE(NULLIF(TRIM($7), ''), state),
+           bio = COALESCE(NULLIF(TRIM($8), ''), bio),
            updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $10
+       WHERE id = $9
        RETURNING id, name, email, role, location, contact_number, profile_image, kyc,
                  address, city, state, bio, created_at, updated_at`,
-      [name, email, updateLocation, updatePhone, profileImage, address, city, state, bio, userId]
+      [name, email, updateLocation, updatePhone, address, city, state, bio, userId]
     );
 
     if (result.rows.length === 0) {
@@ -201,5 +201,33 @@ export const updateUserProfile = async (req, res) => {
     }
     console.error('Update profile error:', err);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+};
+
+// Set the profile picture to an image already uploaded to S3 via /uploads/presign
+export const updateProfileImage = async (req, res) => {
+  if (!isUploadsConfigured()) {
+    return res.status(503).json({ error: 'Image uploads are not configured' });
+  }
+
+  const { profileImage } = req.body;
+  if (typeof profileImage !== 'string' || !profileImage.startsWith(uploadUrlPrefix('profile', req.user.id))) {
+    return res.status(400).json({ error: 'Invalid profile image' });
+  }
+
+  try {
+    const result = await pool.query(
+      'UPDATE users SET profile_image = $1 WHERE id = $2 RETURNING id, profile_image',
+      [profileImage, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ profile_image: result.rows[0].profile_image });
+  } catch (err) {
+    console.error('Update profile image error:', err);
+    res.status(500).json({ error: 'Failed to update profile image' });
   }
 };

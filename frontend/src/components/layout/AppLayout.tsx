@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, Menu, X } from 'lucide-react';
+import { LogOut, Menu, User as UserIcon, X } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { Button } from '../ui/Button';
 
@@ -72,6 +72,16 @@ export const AppLayout: React.FC = () => {
   // Get the navigation links
   const navLinks = user ? getNavLinks() : [];
 
+  const renderAvatar = (sizeClass: string) => (
+    <div className={`${sizeClass} rounded-full bg-green-100 flex items-center justify-center overflow-hidden flex-shrink-0`}>
+      {user?.profileImage ? (
+        <img src={user.profileImage} alt="" className="w-full h-full object-cover" />
+      ) : (
+        <UserIcon size={16} className="text-green-700" />
+      )}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
@@ -106,6 +116,7 @@ export const AppLayout: React.FC = () => {
               {user ? (
                 <div className="hidden md:flex items-center">
                   <div className="flex items-center">
+                    {renderAvatar('w-8 h-8 mr-2')}
                     <div className="text-sm text-gray-700 mr-2">
                       <span className="font-medium">{user.name}</span>
                       <span className="ml-1 text-gray-500 capitalize">({user.role})</span>
@@ -171,6 +182,7 @@ export const AppLayout: React.FC = () => {
                   ))}
                   <div className="pt-4 pb-3 border-t border-gray-200">
                     <div className="flex items-center px-4">
+                      {renderAvatar('w-10 h-10')}
                       <div className="ml-3">
                         <div className="text-base font-medium text-gray-800">{user.name}</div>
                         <div className="text-sm font-medium text-gray-500 capitalize">{user.role}</div>
