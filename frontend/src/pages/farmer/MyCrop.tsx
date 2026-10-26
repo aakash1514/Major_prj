@@ -1,24 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  Plus, Search, Eye, Edit, Trash2, 
-  Calendar, Package, DollarSign, AlertCircle
+import {
+  Plus, Search, Eye, Edit, Trash2,
+  Calendar, Package, DollarSign, AlertCircle, X
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
+import { Textarea } from '../../components/ui/Textarea';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useAuthStore } from '../../store/authStore';
 import { useCropsStore } from '../../store/cropsStore';
+import { API_URL } from '../../config';
+import { Crop } from '../../types';
+
+interface EditForm {
+  name: string;
+  quantity: string;
+  unit: string;
+  price: string;
+  description: string;
+  tac: string;
+}
+
+type EditErrors = Partial<Record<keyof EditForm, string>>;
+
+// Approved/listed crops are locked after admin review
+const isEditable = (status: Crop['status']) => status === 'pending' || status === 'rejected';
 
 export const MyCrop: React.FC = () => {
   const { user } = useAuthStore();
-  const { getCropsByFarmer, fetchCropsByFarmer } = useCropsStore();
+  const { crops, setCrops, getCropsByFarmer, fetchCropsByFarmer } = useCropsStore();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
+  const [editingCrop, setEditingCrop] = useState<Crop | null>(null);
+  const [editForm, setEditForm] = useState<EditForm>({
+    name: '', quantity: '', unit: '', price: '', description: '', tac: '',
+  });
+  const [editErrors, setEditErrors] = useState<EditErrors>({});
+  const [editError, setEditError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Fetch crops on mount
   useEffect(() => {
@@ -74,6 +99,93 @@ export const MyCrop: React.FC = () => {
     if (window.confirm('Are you sure you want to delete this crop?')) {
       // In a real app, this would call an API to delete the crop
       console.log('Deleting crop:', cropId);
+    }
+  };
+
+  const openEditModal = (crop: Crop) => {
+    setEditingCrop(crop);
+    setEditForm({
+      name: crop.name,
+      quantity: String(crop.quantity),
+      unit: crop.unit,
+      price: crop.price ? String(crop.price) : '',
+      description: crop.description || '',
+      tac: crop.tac || '',
+    });
+    setEditErrors({});
+    setEditError('');
+  };
+
+  const closeEditModal = () => {
+    if (!isSaving) setEditingCrop(null);
+  };
+
+  const handleEditChange = (field: keyof EditForm, value: string) => {
+    setEditForm(prev => ({ ...prev, [field]: value }));
+    setEditErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCrop) return;
+
+    const quantity = Number(editForm.quantity);
+    const price = Number(editForm.price);
+    const errors: EditErrors = {};
+    if (!editForm.name.trim()) errors.name = 'Name is required';
+    if (!editForm.unit) errors.unit = 'Unit is required';
+    if (!(quantity > 0)) errors.quantity = 'Quantity must be greater than 0';
+    if (!(price > 0)) errors.price = 'Price must be greater than 0';
+    if (Object.keys(errors).length > 0) {
+      setEditErrors(errors);
+      return;
+    }
+
+    setIsSaving(true);
+    setEditError('');
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/crops/${editingCrop.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: editForm.name.trim(),
+          quantity,
+          unit: editForm.unit,
+          price,
+          description: editForm.description,
+          tac: editForm.tac,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setEditError(data.error || 'Failed to update crop');
+        return;
+      }
+
+      // Backend returns a snake_case row; map it onto the store's Crop shape
+      const updated = data.crop;
+      const updatedCrop: Crop = {
+        ...editingCrop,
+        name: updated.name,
+        quantity: Number(updated.quantity),
+        unit: updated.unit,
+        description: updated.description,
+        status: updated.status,
+        price: updated.price ? Number(updated.price) : 0,
+        tac: updated.tac,
+      };
+      setCrops(crops.map(c => (c.id === updatedCrop.id ? updatedCrop : c)));
+      setEditingCrop(null);
+    } catch (error) {
+      console.error('Error updating crop:', error);
+      setEditError('Failed to update crop. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -244,11 +356,21 @@ export const MyCrop: React.FC = () => {
 
                   <div className="flex justify-between items-center pt-3 border-t">
                     <div className="flex space-x-2">
-                      <Button variant="ghost" size="sm" icon={<Eye size={14} />}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<Eye size={14} />}
+                        onClick={() => navigate(`/farmer/crops/${crop.id}`)}
+                      >
                         View
                       </Button>
-                      {crop.status === 'pending' && (
-                        <Button variant="ghost" size="sm" icon={<Edit size={14} />}>
+                      {isEditable(crop.status) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon={<Edit size={14} />}
+                          onClick={() => openEditModal(crop)}
+                        >
                           Edit
                         </Button>
                       )}
@@ -333,6 +455,105 @@ export const MyCrop: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Crop Modal */}
+      {editingCrop && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <form onSubmit={handleSaveEdit} className="p-6">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Edit Crop</h2>
+                  {editingCrop.status === 'rejected' && (
+                    <p className="text-sm text-gray-600">Saving will resubmit this crop for admin review.</p>
+                  )}
+                </div>
+                <Button variant="ghost" size="sm" icon={<X size={16} />} onClick={closeEditModal}>
+                  Close
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <Input
+                  id="edit-name"
+                  label="Crop Name"
+                  value={editForm.name}
+                  onChange={(e) => handleEditChange('name', e.target.value)}
+                  error={editErrors.name}
+                  fullWidth
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    id="edit-quantity"
+                    label="Quantity"
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={editForm.quantity}
+                    onChange={(e) => handleEditChange('quantity', e.target.value)}
+                    error={editErrors.quantity}
+                    fullWidth
+                  />
+                  <Select
+                    id="edit-unit"
+                    label="Unit"
+                    options={[
+                      { value: 'kg', label: 'Kilograms (kg)' },
+                      { value: 'tons', label: 'Tons' },
+                      { value: 'lbs', label: 'Pounds (lbs)' },
+                      { value: 'bushels', label: 'Bushels' },
+                    ]}
+                    value={editForm.unit}
+                    onChange={(e) => handleEditChange('unit', e.target.value)}
+                    error={editErrors.unit}
+                    fullWidth
+                  />
+                </div>
+                <Input
+                  id="edit-price"
+                  label="Price (per unit)"
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={editForm.price}
+                  onChange={(e) => handleEditChange('price', e.target.value)}
+                  error={editErrors.price}
+                  fullWidth
+                />
+                <Textarea
+                  id="edit-description"
+                  label="Description"
+                  rows={3}
+                  value={editForm.description}
+                  onChange={(e) => handleEditChange('description', e.target.value)}
+                  fullWidth
+                />
+                <Textarea
+                  id="edit-tac"
+                  label="Terms and Conditions"
+                  rows={3}
+                  value={editForm.tac}
+                  onChange={(e) => handleEditChange('tac', e.target.value)}
+                  fullWidth
+                />
+
+                {editError && (
+                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">{editError}</p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <Button variant="outline" onClick={closeEditModal} disabled={isSaving}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" disabled={isSaving}>
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

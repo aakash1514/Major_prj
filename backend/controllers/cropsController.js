@@ -154,12 +154,12 @@ export const updateCrop = async (req, res) => {
     const { name, quantity, unit, description, images, price, tac } = req.body;
 
     const result = await pool.query(
-      'UPDATE crops SET name = COALESCE($1, name), quantity = COALESCE($2, quantity), unit = COALESCE($3, unit), description = COALESCE($4, description), images = COALESCE($5, images), price = COALESCE($6, price), tac = COALESCE($7, tac), updated_at = CURRENT_TIMESTAMP WHERE id = $8 AND farmer_id = $9 RETURNING *',
+      "UPDATE crops SET name = COALESCE($1, name), quantity = COALESCE($2, quantity), unit = COALESCE($3, unit), description = COALESCE($4, description), images = COALESCE($5, images), price = COALESCE($6, price), tac = COALESCE($7, tac), status = CASE WHEN status = 'rejected' THEN 'pending' ELSE status END, updated_at = CURRENT_TIMESTAMP WHERE id = $8 AND farmer_id = $9 AND status IN ('pending', 'rejected') RETURNING *",
       [name, quantity, unit, description, images, price, tac, id, req.user.id]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Crop not found or you do not have permission to modify it' });
+      return res.status(404).json({ error: 'Crop not found, not yours, or no longer editable' });
     }
 
     res.json({
