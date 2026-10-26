@@ -21,6 +21,7 @@ export const getBuyerProfile = async (req, res) => {
 
     res.json({
       ...userResult.rows[0],
+      preferences: (buyerResult.rows[0]?.preferences || []).join(', '),
       buyerDetails: buyerResult.rows[0] || {}
     });
   } catch (err) {
@@ -31,30 +32,52 @@ export const getBuyerProfile = async (req, res) => {
 
 // Update buyer profile
 export const updateBuyerProfile = async (req, res) => {
+  const client = await pool.connect();
   try {
     const buyerId = req.user.id;
     const { name, location, contactNumber, profileImage, companyName, businessType, preferences } = req.body;
 
     console.log('📝 Updating buyer profile for:', buyerId);
-    console.log('📦 Received data:', { name, location, contactNumber, profileImage, companyName, businessType, preferences });
+
+    // buyers.preferences is TEXT[]; accept an array or a comma/newline separated string.
+    // null means "keep existing".
+    let preferenceList = null;
+    if (Array.isArray(preferences)) {
+      preferenceList = preferences.map((p) => String(p).trim()).filter(Boolean);
+    } else if (typeof preferences === 'string') {
+      preferenceList = preferences.split(/[,\n]/).map((p) => p.trim()).filter(Boolean);
+    }
+    if (!preferenceList || preferenceList.length === 0) {
+      preferenceList = null;
+    }
+
+    await client.query('BEGIN');
 
     // Update user info with COALESCE(NULLIF(..., ''), existing_value) to handle empty strings
-    await pool.query(
+    await client.query(
       'UPDATE users SET name = COALESCE(NULLIF($1, \'\'), name), location = COALESCE(NULLIF($2, \'\'), location), contact_number = COALESCE(NULLIF($3, \'\'), contact_number), profile_image = COALESCE(NULLIF($4, \'\'), profile_image) WHERE id = $5',
       [name, location, contactNumber, profileImage, buyerId]
     );
 
     console.log('✅ Users table updated');
 
+    // Make sure a buyers row exists so the update below has something to change
+    await client.query(
+      'INSERT INTO buyers (id) VALUES ($1) ON CONFLICT (id) DO NOTHING',
+      [buyerId]
+    );
+
     // Update buyer info
-    await pool.query(
-      `UPDATE buyers SET 
+    await client.query(
+      `UPDATE buyers SET
         company_name = COALESCE(NULLIF($1, ''), company_name),
         business_type = COALESCE(NULLIF($2, ''), business_type),
-        preferences = COALESCE(NULLIF($3, ''), preferences)
+        preferences = COALESCE($3::text[], preferences)
       WHERE id = $4`,
-      [companyName, businessType, preferences, buyerId]
+      [companyName, businessType, preferenceList, buyerId]
     );
+
+    await client.query('COMMIT');
 
     console.log('✅ Buyers table updated');
 
@@ -63,15 +86,16 @@ export const updateBuyerProfile = async (req, res) => {
       [buyerId]
     );
 
-    console.log('✅ Profile fetch result:', result.rows[0]);
-
     res.json({
       message: 'Buyer profile updated successfully',
       user: result.rows[0]
     });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('❌ Update buyer profile error:', err);
-    res.status(500).json({ error: 'Failed to update profile: ' + err.message });
+    res.status(500).json({ error: 'Failed to update profile' });
+  } finally {
+    client.release();
   }
 };
 

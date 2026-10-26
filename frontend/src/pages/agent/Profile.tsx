@@ -27,19 +27,43 @@ export const AgentProfile: React.FC = () => {
     bio: 'Delivery Agent'
   });
 
+  const applyProfile = (profile: Record<string, string | null | undefined>) => {
+    setFormData({
+      name: profile.name || '',
+      email: profile.email || '',
+      phone: profile.contact_number || '',
+      address: profile.address || '',
+      city: profile.city || '',
+      state: profile.state || '',
+      bio: profile.bio || 'Delivery Agent'
+    });
+  };
+
   useEffect(() => {
-    if (user) {
-      setFormData({
-        name: user.name || '',
-        email: user.email || '',
-        phone: '',
-        address: '',
-        city: '',
-        state: '',
-        bio: 'Delivery Agent'
-      });
-    }
-  }, [user]);
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+
+        const response = await fetch(`${API_URL}/users/profile`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          applyProfile(await response.json());
+        } else {
+          setErrorMessage('Failed to load profile');
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error);
+        setErrorMessage('Error loading profile');
+      }
+    };
+
+    fetchProfile();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -62,15 +86,20 @@ export const AgentProfile: React.FC = () => {
           Authorization: `Bearer ${token}`,
           'ngrok-skip-browser-warning': 'true',
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ ...formData, contactNumber: formData.phone })
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (response.ok) {
+        if (data.user) {
+          applyProfile(data.user);
+        }
         setSuccessMessage('Profile updated successfully!');
         setIsEditing(false);
         setTimeout(() => setSuccessMessage(''), 3000);
       } else {
-        setErrorMessage('Failed to update profile');
+        setErrorMessage(data.error || 'Failed to update profile');
       }
     } catch (error) {
       console.error('Error updating profile:', error);

@@ -115,7 +115,7 @@ export const getUserProfile = async (req, res) => {
     const userId = req.user.id;
 
     const result = await pool.query(
-      'SELECT id, name, email, role, location, contact_number, profile_image, kyc, created_at FROM users WHERE id = $1',
+      'SELECT id, name, email, role, location, contact_number, profile_image, kyc, address, city, state, bio, created_at FROM users WHERE id = $1',
       [userId]
     );
 
@@ -171,15 +171,15 @@ export const updateUserProfile = async (req, res) => {
 
     const result = await pool.query(
       `UPDATE users 
-       SET name = COALESCE($1, name), 
-           email = COALESCE($2, email),
-           location = COALESCE($3, location), 
-           contact_number = COALESCE($4, contact_number), 
-           profile_image = COALESCE($5, profile_image),
-           address = COALESCE($6, address),
-           city = COALESCE($7, city),
-           state = COALESCE($8, state),
-           bio = COALESCE($9, bio),
+       SET name = COALESCE(NULLIF(TRIM($1), ''), name), 
+           email = COALESCE(NULLIF(TRIM($2), ''), email),
+           location = COALESCE(NULLIF(TRIM($3), ''), location), 
+           contact_number = COALESCE(NULLIF(TRIM($4), ''), contact_number), 
+           profile_image = COALESCE(NULLIF(TRIM($5), ''), profile_image),
+           address = COALESCE(NULLIF(TRIM($6), ''), address),
+           city = COALESCE(NULLIF(TRIM($7), ''), city),
+           state = COALESCE(NULLIF(TRIM($8), ''), state),
+           bio = COALESCE(NULLIF(TRIM($9), ''), bio),
            updated_at = CURRENT_TIMESTAMP 
        WHERE id = $10
        RETURNING id, name, email, role, location, contact_number, profile_image, kyc,
@@ -196,6 +196,9 @@ export const updateUserProfile = async (req, res) => {
       user: result.rows[0]
     });
   } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'Email is already in use' });
+    }
     console.error('Update profile error:', err);
     res.status(500).json({ error: 'Failed to update profile' });
   }
