@@ -94,6 +94,7 @@ export const MyOrders: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [isPaying, setIsPaying] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState<string | null>(null);
 
   const razorpayKey =
     import.meta.env.VITE_RAZORPAY_KEY || 'rzp_test_Reli2JwWcxfYe5';
@@ -241,6 +242,37 @@ export const MyOrders: React.FC = () => {
       const message = error instanceof Error ? error.message : 'Failed to initiate payment';
       alert(message);
       setIsPaying(null);
+    }
+  };
+
+  const handleCancelOrder = async (order: BuyerOrder) => {
+    if (!window.confirm('Are you sure you want to cancel this order?')) {
+      return;
+    }
+
+    setIsCancelling(order.id);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/orders/${order.id}/cancel`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        }
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || 'Failed to cancel order');
+        return;
+      }
+
+      await fetchBuyerOrders();
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      alert('Failed to cancel order');
+    } finally {
+      setIsCancelling(null);
     }
   };
 
@@ -493,19 +525,16 @@ export const MyOrders: React.FC = () => {
                         >
                           View Details
                         </Button>
-                        {order.status === 'pending' && (
+                        {order.status === 'pending' && order.payment_status === 'pending' && (
                           <Button
                             variant="danger"
                             size="sm"
                             icon={<X size={14} />}
-                            onClick={() => {
-                              if (window.confirm('Are you sure you want to cancel this order?')) {
-                                console.log('Cancelling order:', order.id);
-                              }
-                            }}
+                            onClick={() => handleCancelOrder(order)}
+                            disabled={isCancelling === order.id}
                             fullWidth
                           >
-                            Cancel
+                            {isCancelling === order.id ? 'Cancelling...' : 'Cancel'}
                           </Button>
                         )}
                       </div>

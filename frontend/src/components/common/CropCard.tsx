@@ -4,6 +4,7 @@ import { Card, CardContent, CardFooter } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Crop } from '../../types';
+import { useAuthStore } from '../../store/authStore';
 import { API_URL } from '../../config';
 
 interface CropCardProps {
@@ -17,6 +18,8 @@ export const CropCard: React.FC<CropCardProps> = ({
   showActions = true,
   linkTo 
 }) => {
+  const { user } = useAuthStore();
+
   const resolveImageUrl = (value?: string) => {
     if (!value) return null;
     if (value.startsWith('blob:')) {
@@ -83,8 +86,10 @@ export const CropCard: React.FC<CropCardProps> = ({
           ) : (
             <Button variant="primary" size="sm">View Details</Button>
           )}
-          {crop.status === 'listed' && (
-            <Button variant="secondary" size="sm">Place Order</Button>
+          {crop.status === 'listed' && user?.role === 'buyer' && (
+            <Link to="/buyer/marketplace">
+              <Button variant="secondary" size="sm">Place Order</Button>
+            </Link>
           )}
         </CardFooter>
       )}
