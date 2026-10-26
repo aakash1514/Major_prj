@@ -31,6 +31,7 @@ export const AdminUsers: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [kycUpdating, setKycUpdating] = useState(false);
 
   // Fetch users on mount
   useEffect(() => {
@@ -104,9 +105,36 @@ export const AdminUsers: React.FC = () => {
     setSelectedUser(userId);
   };
 
-  const handleUpdateUserStatus = (userId: string, newStatus: string) => {
-    // In a real app, this would call an API
-    console.log('Updating user status:', userId, newStatus);
+  const handleToggleKyc = async (userId: string) => {
+    setKycUpdating(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/admin/users/${userId}/toggle-kyc`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
+        }
+      });
+
+      if (!response.ok) {
+        console.error('Failed to toggle KYC:', response.status);
+        alert('Failed to update KYC status');
+        return;
+      }
+
+      const data = await response.json();
+      if (data.user && typeof data.user.kyc === 'boolean') {
+        setUsers(prev => prev.map(u => (u.id === userId ? { ...u, kyc: data.user.kyc } : u)));
+      } else {
+        await fetchAllUsers();
+      }
+    } catch (error) {
+      console.error('Error toggling KYC:', error);
+      alert('Failed to update KYC status');
+    } finally {
+      setKycUpdating(false);
+    }
   };
 
   const selectedUserData = selectedUser ? users.find(u => u.id === selectedUser) : null;
@@ -348,6 +376,7 @@ export const AdminUsers: React.FC = () => {
                         variant="primary"
                         size="sm"
                         icon={<Edit size={14} />}
+                        onClick={() => handleViewUser(user.id)}
                         fullWidth
                       >
                         Manage User
@@ -449,36 +478,14 @@ export const AdminUsers: React.FC = () => {
                   <h3 className="font-medium text-gray-900 mb-3">Actions</h3>
                   <div className="grid grid-cols-2 gap-3">
                     <Button
-                      variant={selectedUserData.status === 'active' ? 'danger' : 'success'}
+                      variant={selectedUserData.kyc ? 'danger' : 'success'}
                       size="sm"
-                      onClick={() => handleUpdateUserStatus(
-                        selectedUserData.id, 
-                        selectedUserData.status === 'active' ? 'suspended' : 'active'
-                      )}
+                      icon={<Shield size={14} />}
+                      onClick={() => handleToggleKyc(selectedUserData.id)}
+                      disabled={kycUpdating}
                       fullWidth
                     >
-                      {selectedUserData.status === 'active' ? 'Suspend User' : 'Activate User'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      fullWidth
-                    >
-                      Reset Password
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      fullWidth
-                    >
-                      Send Message
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      fullWidth
-                    >
-                      View Activity Log
+                      {kycUpdating ? 'Updating...' : selectedUserData.kyc ? 'Revoke KYC' : 'Verify KYC'}
                     </Button>
                   </div>
                 </div>

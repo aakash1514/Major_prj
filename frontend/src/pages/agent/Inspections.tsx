@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Search, Filter, Eye, CheckCircle, X, Clock, 
-  Calendar, Package, User, MapPin, Camera, FileText
+  Search, Eye, CheckCircle, X, Clock,
+  Calendar, Package, User, FileText
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
+import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -14,6 +14,8 @@ import { Badge } from '../../components/ui/Badge';
 import { useCropsStore } from '../../store/cropsStore';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../utils/api';
+import { API_URL } from '../../config';
+import type { Crop } from '../../types';
 
 interface DemandPredictionEntry {
   value: number | null;
@@ -64,6 +66,19 @@ const buildDemandInput = (crop: {
   };
 };
 
+interface CropQualityReport {
+  id: string;
+  weight?: number | string | null;
+  size?: string | null;
+  condition?: string | null;
+  notes?: string | null;
+  recommendation?: 'approve' | 'reject' | null;
+  created_at?: string;
+}
+
+const getDisplayImage = (images: string[] = []) =>
+  images.find((image) => image && !image.startsWith('blob:'));
+
 const getDemandLevel = (value: number) => {
   if (value >= 10000000) {
     return { label: 'High', variant: 'success' as const };
@@ -84,6 +99,10 @@ export const Inspections: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [selectedCrop, setSelectedCrop] = useState<string | null>(null);
+  const [detailsCropId, setDetailsCropId] = useState<string | null>(null);
+  const [detailsReports, setDetailsReports] = useState<CropQualityReport[]>([]);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
   const [inspectionData, setInspectionData] = useState({
     weight: '',
     size: '',
@@ -186,7 +205,34 @@ export const Inspections: React.FC = () => {
 
   const stats = getInspectionStats();
 
+  const handleViewDetails = async (cropId: string) => {
+    setDetailsCropId(cropId);
+    setDetailsReports([]);
+    setDetailsError(null);
+    setDetailsLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/agent/inspections/crop/${cropId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch reports (${response.status})`);
+      }
+      const data = await response.json();
+      setDetailsReports(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error fetching quality reports:', error);
+      setDetailsError(error instanceof Error ? error.message : 'Failed to fetch reports');
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
   const handleStartInspection = (cropId: string) => {
+    setDetailsCropId(null);
     setSelectedCrop(cropId);
     setInspectionData({
       weight: '',
@@ -227,6 +273,10 @@ export const Inspections: React.FC = () => {
   };
 
   const selectedCropData = selectedCrop ? crops.find(c => c.id === selectedCrop) : null;
+  const detailsCropData = detailsCropId ? crops.find(c => c.id === detailsCropId) : null;
+  const detailsCropExtras = detailsCropData as (Crop & { farmerName?: string; farmer_name?: string }) | null | undefined;
+  const detailsFarmerName = detailsCropExtras?.farmerName || detailsCropExtras?.farmer_name;
+  const detailsImage = detailsCropData ? getDisplayImage(detailsCropData.images) : undefined;
 
   const renderDemandPriorityBadge = (cropId: string) => {
     const prediction = demandPredictions[cropId];
@@ -423,6 +473,7 @@ export const Inspections: React.FC = () => {
                         variant="outline"
                         size="sm"
                         icon={<Eye size={14} />}
+                        onClick={() => handleViewDetails(crop.id)}
                         fullWidth
                       >
                         View Details
@@ -472,6 +523,133 @@ export const Inspections: React.FC = () => {
         </Card>
       )}
 
+      {/* Crop Details Modal (read-only) */}
+      {detailsCropId && detailsCropData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Crop Details</h2>
+                  <p className="text-gray-600">{detailsCropData.name}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<X size={16} />}
+                  onClick={() => setDetailsCropId(null)}
+                >
+                  Close
+                </Button>
+              </div>
+
+              <div className="space-y-6">
+                {detailsImage && (
+                  <div className="w-full h-56 overflow-hidden rounded-lg">
+                    <img
+                      src={detailsImage}
+                      alt={detailsCropData.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm text-gray-500">Name</label>
+                    <p className="font-medium">{detailsCropData.name}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-500">Status</label>
+                    <div><StatusBadge status={detailsCropData.status} /></div>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-500">Quantity</label>
+                    <p className="font-medium">{detailsCropData.quantity} {detailsCropData.unit}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-500">Price</label>
+                    <p className="font-medium">
+                      {detailsCropData.price ? `₹${detailsCropData.price} / ${detailsCropData.unit}` : 'Not set'}
+                    </p>
+                  </div>
+                  {detailsFarmerName && (
+                    <div>
+                      <label className="text-sm text-gray-500">Farmer</label>
+                      <p className="font-medium">{detailsFarmerName}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="font-medium text-gray-900 mb-2">Description</h3>
+                  <p className="text-gray-600 text-sm">{detailsCropData.description || 'No description provided'}</p>
+                </div>
+
+                <div>
+                  <h3 className="font-medium text-gray-900 mb-3">Quality Reports</h3>
+                  {detailsLoading ? (
+                    <p className="text-gray-500 text-sm flex items-center">
+                      <Clock className="h-4 w-4 mr-2" /> Loading reports...
+                    </p>
+                  ) : detailsError ? (
+                    <p className="text-red-600 text-sm">{detailsError}</p>
+                  ) : detailsReports.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No reports yet</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {detailsReports.map((report) => (
+                        <div key={report.id} className="border border-gray-200 rounded-lg p-3 text-sm">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-gray-500">
+                              {report.created_at ? new Date(report.created_at).toLocaleString() : 'Unknown date'}
+                            </span>
+                            {report.recommendation && (
+                              <Badge variant={report.recommendation === 'approve' ? 'success' : 'danger'} size="sm">
+                                {report.recommendation === 'approve' ? 'Approved' : 'Rejected'}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <p className="text-gray-500">Weight</p>
+                              <p className="font-medium">{report.weight ?? '-'}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Size</p>
+                              <p className="font-medium">{report.size || '-'}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Condition</p>
+                              <p className="font-medium">{report.condition || '-'}</p>
+                            </div>
+                          </div>
+                          {report.notes && <p className="text-gray-600 mt-2">{report.notes}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex space-x-3 pt-2">
+                  <Button variant="outline" onClick={() => setDetailsCropId(null)} fullWidth>
+                    Close
+                  </Button>
+                  <Button
+                    variant="primary"
+                    icon={<CheckCircle size={14} />}
+                    onClick={() => handleStartInspection(detailsCropData.id)}
+                    fullWidth
+                  >
+                    Start inspection
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Inspection Modal */}
       {selectedCrop && selectedCropData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -487,7 +665,9 @@ export const Inspections: React.FC = () => {
                   size="sm"
                   icon={<X size={16} />}
                   onClick={() => setSelectedCrop(null)}
-                />
+                >
+                  Close
+                </Button>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
