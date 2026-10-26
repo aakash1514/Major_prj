@@ -365,7 +365,7 @@ export const BuyerDashboard: React.FC = () => {
                         {new Date(order.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3">
-                        <Link to={`/buyer/orders/${order.id}`}>
+                        <Link to={`/buyer/orders?order=${order.id}`}>
                           <Button variant="ghost" size="sm">Details</Button>
                         </Link>
                       </td>

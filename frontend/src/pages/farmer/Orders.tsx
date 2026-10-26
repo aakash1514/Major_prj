@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Package, Clock, CheckCircle, Truck, DollarSign, 
-  Eye, MessageCircle, Calendar, User
+  Eye, Calendar, User, X, MapPin
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -23,9 +23,17 @@ interface FarmerOrder {
   total_amount: number;
   quantity: number;
   transporter_id?: string;
+  delivery_notes?: string | null;
+  crop_name?: string;
+  crop_unit?: string;
+  buyer_name?: string;
+  buyer_location?: string | null;
   created_at: string;
   updated_at: string;
 }
+
+const toAmount = (value: number | string | null | undefined) =>
+  typeof value === 'number' ? value : parseFloat(value || '0') || 0;
 
 interface CropInfo {
   id: string;
@@ -42,6 +50,7 @@ export const Orders: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
+  const [selectedOrder, setSelectedOrder] = useState<FarmerOrder | null>(null);
 
   // Fetch orders on mount
   useEffect(() => {
@@ -382,19 +391,10 @@ export const Orders: React.FC = () => {
                           variant="outline"
                           size="sm"
                           icon={<Eye size={14} />}
-                          onClick={() => console.log('View order:', order.id)}
+                          onClick={() => setSelectedOrder(order)}
                           fullWidth
                         >
                           View Details
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={<MessageCircle size={14} />}
-                          onClick={() => console.log('Contact buyer for order:', order.id)}
-                          fullWidth
-                        >
-                          Contact Buyer
                         </Button>
                       </div>
                     </div>
@@ -452,6 +452,123 @@ export const Orders: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Order Details Modal */}
+      {selectedOrder && (() => {
+        const crop = cropInfo.get(selectedOrder.crop_id);
+        const cropName = selectedOrder.crop_name || crop?.name || 'Unknown Crop';
+        const unit = selectedOrder.crop_unit || crop?.unit || '';
+        const totalAmt = toAmount(selectedOrder.total_amount);
+        const advanceAmt = toAmount(selectedOrder.advance_amount);
+        const hasDelivery = Boolean(selectedOrder.transporter_id || selectedOrder.delivery_notes);
+
+        return (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={() => setSelectedOrder(null)}
+          >
+            <div className="max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <Card className="w-full">
+              <CardContent className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Order Details</h2>
+                    <p className="text-xs text-gray-500 break-all mt-1">#{selectedOrder.id}</p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedOrder(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                    aria-label="Close"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Crop */}
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <h3 className="font-semibold text-gray-900">{cropName}</h3>
+                    <p className="text-sm text-gray-600">
+                      Quantity: {selectedOrder.quantity} {unit}
+                    </p>
+                  </div>
+
+                  {/* Amounts & status */}
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500">Total Amount</p>
+                      <p className="font-semibold">₹{totalAmt.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Advance Amount</p>
+                      <p className="font-semibold">₹{advanceAmt.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Order Status</p>
+                      <StatusBadge status={selectedOrder.status} />
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Payment Status</p>
+                      <Badge variant={selectedOrder.payment_status === 'fully-paid' ? 'success' : 'warning'}>
+                        {selectedOrder.payment_status.replace('-', ' ').toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-gray-500">Order Date</p>
+                      <p className="font-medium">{new Date(selectedOrder.created_at).toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  {/* Buyer */}
+                  <div className="pt-4 border-t">
+                    <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
+                      <User className="h-4 w-4 mr-2 text-gray-500" />
+                      Buyer
+                    </h3>
+                    <div className="space-y-1 text-sm">
+                      <p className="text-gray-700">{selectedOrder.buyer_name || 'Unknown buyer'}</p>
+                      <p className="text-gray-600 flex items-center">
+                        <MapPin className="h-3 w-3 mr-1 text-gray-400" />
+                        {selectedOrder.buyer_location || 'Location not specified'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Delivery */}
+                  {hasDelivery && (
+                    <div className="pt-4 border-t">
+                      <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
+                        <Truck className="h-4 w-4 mr-2 text-gray-500" />
+                        Delivery Details
+                      </h3>
+                      <div className="space-y-2 text-sm">
+                        {selectedOrder.transporter_id && (
+                          <p className="text-gray-700">
+                            <span className="text-gray-500">Delivery agent assigned:</span>{' '}
+                            #{selectedOrder.transporter_id.substring(0, 8)}
+                          </p>
+                        )}
+                        {selectedOrder.delivery_notes && (
+                          <p className="text-gray-700">
+                            <span className="text-gray-500">Notes:</span> {selectedOrder.delivery_notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                  <Button variant="outline" onClick={() => setSelectedOrder(null)}>
+                    Close
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Recent Activity */}
       <Card>

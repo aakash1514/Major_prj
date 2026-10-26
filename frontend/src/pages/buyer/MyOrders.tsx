@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Package, Clock, CheckCircle, Truck, DollarSign, 
   Eye, X, Calendar, User, CreditCard
@@ -123,6 +124,8 @@ export const MyOrders: React.FC = () => {
   const [isPaying, setIsPaying] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<BuyerOrder | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const orderParam = searchParams.get('order');
 
   const razorpayKey =
     import.meta.env.VITE_RAZORPAY_KEY || 'rzp_test_Reli2JwWcxfYe5';
@@ -133,6 +136,24 @@ export const MyOrders: React.FC = () => {
       fetchBuyerOrders();
     }
   }, [user]);
+
+  // Open the details modal when arriving with ?order=<id> (e.g. from the dashboard)
+  useEffect(() => {
+    if (!orderParam || buyerOrders.length === 0) return;
+    const match = buyerOrders.find(o => o.id === orderParam);
+    if (match) {
+      setSelectedOrder(match);
+    }
+  }, [orderParam, buyerOrders]);
+
+  const closeOrderDetails = () => {
+    setSelectedOrder(null);
+    if (searchParams.has('order')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('order');
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   const fetchBuyerOrders = async () => {
     try {
@@ -636,7 +657,7 @@ export const MyOrders: React.FC = () => {
         return (
           <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-            onClick={() => setSelectedOrder(null)}
+            onClick={closeOrderDetails}
           >
             <div className="max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <Card className="w-full">
@@ -647,7 +668,7 @@ export const MyOrders: React.FC = () => {
                     <p className="text-xs text-gray-500 break-all mt-1">#{selectedOrder.id}</p>
                   </div>
                   <button
-                    onClick={() => setSelectedOrder(null)}
+                    onClick={closeOrderDetails}
                     className="text-gray-400 hover:text-gray-600"
                     aria-label="Close"
                   >
@@ -734,7 +755,7 @@ export const MyOrders: React.FC = () => {
                 </div>
 
                 <div className="mt-6 flex justify-end">
-                  <Button variant="outline" onClick={() => setSelectedOrder(null)}>
+                  <Button variant="outline" onClick={closeOrderDetails}>
                     Close
                   </Button>
                 </div>

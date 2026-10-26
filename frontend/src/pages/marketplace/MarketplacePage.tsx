@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Filter, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -456,16 +457,22 @@ export const MarketplacePage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Action Button */}
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => setSelectedCrop(crop.id)}
-                        fullWidth
-                        className="mt-auto"
-                      >
-                        Place Order
-                      </Button>
+                      {/* Action Buttons */}
+                      <div className="grid grid-cols-2 gap-2 mt-auto">
+                        <Link to={`/buyer/marketplace/${crop.id}`}>
+                          <Button variant="outline" size="sm" fullWidth>
+                            View Details
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => setSelectedCrop(crop.id)}
+                          fullWidth
+                        >
+                          Place Order
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 </motion.div>

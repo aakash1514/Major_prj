@@ -154,8 +154,10 @@ export const getFarmerOrders = async (req, res) => {
     const farmerId = req.user.id;
 
     const result = await pool.query(
-      `SELECT o.* FROM orders o
+      `SELECT o.*, c.name AS crop_name, c.unit AS crop_unit, u.name AS buyer_name, u.location AS buyer_location
+       FROM orders o
        JOIN crops c ON o.crop_id = c.id
+       JOIN users u ON o.buyer_id = u.id
        WHERE c.farmer_id = $1
        ORDER BY o.created_at DESC`,
       [farmerId]
