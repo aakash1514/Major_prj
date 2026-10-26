@@ -24,6 +24,9 @@ interface BuyerOrder {
   total_amount: number;
   quantity: number;
   transporter_id?: string;
+  delivery_notes?: string | null;
+  delivery_proof?: string | null;
+  paid_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -35,7 +38,31 @@ interface CropInfo {
   unit: string;
   price_per_unit: number;
   farmer_id?: string;
+  images?: string[] | null;
 }
+
+const FALLBACK_CROP_IMAGE = 'https://images.pexels.com/photos/601798/pexels-photo-601798.jpeg';
+
+// Same resolution rules as CropCard: skip stale blob: URLs, prefix /uploads with the API host
+const resolveImageUrl = (value?: string) => {
+  if (!value) return null;
+  if (value.startsWith('blob:')) {
+    return null;
+  }
+  if (value.startsWith('http') || value.startsWith('data:')) {
+    return value;
+  }
+
+  const apiBase = API_URL.replace(/\/api\/?$/, '');
+  if (value.startsWith('/uploads')) {
+    return `${apiBase}${value}`;
+  }
+
+  return value;
+};
+
+const toAmount = (value: number | string | null | undefined) =>
+  typeof value === 'number' ? value : parseFloat(value || '0') || 0;
 
 interface RazorpaySuccessResponse {
   razorpay_payment_id: string;
@@ -95,6 +122,7 @@ export const MyOrders: React.FC = () => {
   const [sortBy, setSortBy] = useState('newest');
   const [isPaying, setIsPaying] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<BuyerOrder | null>(null);
 
   const razorpayKey =
     import.meta.env.VITE_RAZORPAY_KEY || 'rzp_test_Reli2JwWcxfYe5';
@@ -520,7 +548,7 @@ export const MyOrders: React.FC = () => {
                           variant="outline"
                           size="sm"
                           icon={<Eye size={14} />}
-                          onClick={() => console.log('View order:', order.id)}
+                          onClick={() => setSelectedOrder(order)}
                           fullWidth
                         >
                           View Details
@@ -594,7 +622,128 @@ export const MyOrders: React.FC = () => {
         </Card>
       )}
 
-      {/* Order Details Modal - Coming Soon */}
+      {/* Order Details Modal */}
+      {selectedOrder && (() => {
+        const crop = cropInfo.get(selectedOrder.crop_id);
+        const imageSrc = resolveImageUrl(crop?.images?.[0]) || FALLBACK_CROP_IMAGE;
+        const totalAmt = toAmount(selectedOrder.total_amount);
+        const advanceAmt = toAmount(selectedOrder.advance_amount);
+        const hasDelivery = Boolean(
+          selectedOrder.transporter_id || selectedOrder.delivery_notes || selectedOrder.delivery_proof
+        );
+        const deliveryProofSrc = resolveImageUrl(selectedOrder.delivery_proof || undefined);
+
+        return (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={() => setSelectedOrder(null)}
+          >
+            <div className="max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <Card className="w-full">
+              <CardContent className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Order Details</h2>
+                    <p className="text-xs text-gray-500 break-all mt-1">#{selectedOrder.id}</p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedOrder(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                    aria-label="Close"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Crop */}
+                  <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                    <img
+                      src={imageSrc}
+                      alt={crop?.name || 'Crop'}
+                      className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                    />
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{crop?.name || 'Unknown Crop'}</h3>
+                      <p className="text-sm text-gray-600">
+                        Quantity: {selectedOrder.quantity} {crop?.unit || ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Amounts & status */}
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500">Total Amount</p>
+                      <p className="font-semibold">₹{totalAmt.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Advance Amount</p>
+                      <p className="font-semibold">₹{advanceAmt.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Order Status</p>
+                      <StatusBadge status={selectedOrder.status} />
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Payment Status</p>
+                      <Badge variant={selectedOrder.payment_status === 'fully-paid' ? 'success' : 'warning'}>
+                        {selectedOrder.payment_status.replace('-', ' ').toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-gray-500">Order Date</p>
+                      <p className="font-medium">{new Date(selectedOrder.created_at).toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  {/* Delivery */}
+                  {hasDelivery && (
+                    <div className="pt-4 border-t">
+                      <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
+                        <Truck className="h-4 w-4 mr-2 text-gray-500" />
+                        Delivery Details
+                      </h3>
+                      <div className="space-y-2 text-sm">
+                        {selectedOrder.transporter_id && (
+                          <p className="text-gray-700">
+                            <span className="text-gray-500">Delivery agent assigned:</span>{' '}
+                            #{selectedOrder.transporter_id.substring(0, 8)}
+                          </p>
+                        )}
+                        {selectedOrder.delivery_notes && (
+                          <p className="text-gray-700">
+                            <span className="text-gray-500">Notes:</span> {selectedOrder.delivery_notes}
+                          </p>
+                        )}
+                        {deliveryProofSrc && (
+                          <div>
+                            <p className="text-gray-500 mb-1">Proof of delivery:</p>
+                            <a href={deliveryProofSrc} target="_blank" rel="noopener noreferrer">
+                              <img
+                                src={deliveryProofSrc}
+                                alt="Delivery proof"
+                                className="w-full max-h-48 object-cover rounded-lg"
+                              />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                  <Button variant="outline" onClick={() => setSelectedOrder(null)}>
+                    Close
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

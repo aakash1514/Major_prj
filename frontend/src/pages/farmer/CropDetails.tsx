@@ -1,35 +1,147 @@
-import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { 
-  ArrowLeft, Calendar, Package, DollarSign, MapPin, 
-  User, Edit, Trash2, Eye, CheckCircle, Clock, AlertCircle
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import {
+  ArrowLeft, Calendar, Package, DollarSign,
+  Trash2, Eye, CheckCircle, Clock, AlertCircle, ShoppingCart
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { StatusBadge } from '../../components/ui/StatusBadge';
-import { Badge } from '../../components/ui/Badge';
 import { useAuthStore } from '../../store/authStore';
-import { useCropsStore } from '../../store/cropsStore';
-import { useOrdersStore } from '../../store/ordersStore';
+import { API_URL } from '../../config';
+
+interface CropDetail {
+  id: string;
+  farmer_id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  harvest_date?: string | null;
+  description?: string | null;
+  images?: string[] | null;
+  status: 'pending' | 'inspected' | 'approved' | 'rejected' | 'listed' | 'sold';
+  price?: number | null;
+  tac?: string | null;
+  rejection_reason?: string | null;
+  created_at?: string;
+}
+
+const FALLBACK_IMAGE = 'https://images.pexels.com/photos/601798/pexels-photo-601798.jpeg';
+
+// Same resolution rules as CropCard: skip stale blob: URLs, prefix /uploads with the API host
+const resolveImageUrl = (value?: string) => {
+  if (!value) return null;
+  if (value.startsWith('blob:')) {
+    return null;
+  }
+  if (value.startsWith('http') || value.startsWith('data:')) {
+    return value;
+  }
+
+  const apiBase = API_URL.replace(/\/api\/?$/, '');
+  if (value.startsWith('/uploads')) {
+    return `${apiBase}${value}`;
+  }
+
+  return value;
+};
 
 export const CropDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { crops, getCropById, updateCropStatus } = useCropsStore();
-  const { orders } = useOrdersStore();
 
-  const crop = id ? getCropById(id) : null;
-  const cropOrders = crop ? orders.filter(order => order.cropId === crop.id) : [];
+  const [crop, setCrop] = useState<CropDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  if (!crop) {
+  const isFarmer = user?.role === 'farmer';
+  const isBuyer = user?.role === 'buyer';
+  const backPath = isFarmer ? '/farmer/crops' : '/buyer/marketplace';
+
+  const fetchCrop = async () => {
+    if (!id) {
+      setNotFound(true);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setNotFound(false);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/crops/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
+        }
+      });
+
+      if (response.status === 404) {
+        setCrop(null);
+        setNotFound(true);
+        return;
+      }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to load crop (${response.status})`);
+      }
+
+      const data = await response.json();
+      setCrop(data);
+    } catch (err) {
+      console.error('Error fetching crop:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load crop');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCrop();
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading crop details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-3" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <div className="flex justify-center space-x-2">
+            <Button variant="outline" onClick={() => navigate(backPath)} icon={<ArrowLeft size={16} />}>
+              Go Back
+            </Button>
+            <Button onClick={fetchCrop}>Retry</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (notFound || !crop) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Crop not found</h2>
           <p className="text-gray-600 mb-4">The crop you're looking for doesn't exist.</p>
-          <Button onClick={() => navigate(-1)} icon={<ArrowLeft size={16} />}>
+          <Button onClick={() => navigate(backPath)} icon={<ArrowLeft size={16} />}>
             Go Back
           </Button>
         </div>
@@ -37,16 +149,41 @@ export const CropDetails: React.FC = () => {
     );
   }
 
-  const handleEdit = () => {
-    // In a real app, this would navigate to edit page
-    console.log('Edit crop:', crop.id);
-  };
+  const isOwner = isFarmer && crop.farmer_id === user?.id;
+  const price = crop.price !== undefined && crop.price !== null ? Number(crop.price) : null;
+  const quantity = Number(crop.quantity) || 0;
+  const images = (crop.images || [])
+    .map(img => resolveImageUrl(img))
+    .filter((img): img is string => Boolean(img));
+  const displayImages = images.length > 0 ? images : [FALLBACK_IMAGE];
 
-  const handleDelete = () => {
-    if (window.confirm('Are you sure you want to delete this crop?')) {
-      // In a real app, this would call an API
-      console.log('Delete crop:', crop.id);
+  const handleDelete = async () => {
+    if (!window.confirm('Are you sure you want to delete this crop?')) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/crops/${crop.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        }
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || 'Failed to delete crop');
+        return;
+      }
+
       navigate('/farmer/crops');
+    } catch (err) {
+      console.error('Error deleting crop:', err);
+      alert('Failed to delete crop');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -75,42 +212,40 @@ export const CropDetails: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-4">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="sm"
             icon={<ArrowLeft size={16} />}
-            onClick={() => navigate(-1)}
+            onClick={() => navigate(backPath)}
           >
             Back
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{crop.name}</h1>
-            <p className="text-gray-600">Crop Details & Management</p>
+            <p className="text-gray-600">{isOwner ? 'Crop Details & Management' : 'Crop Details'}</p>
           </div>
         </div>
-        
+
         <div className="flex items-center space-x-2">
-          {crop.status === 'pending' && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                icon={<Edit size={16} />}
-                onClick={handleEdit}
-              >
-                Edit
+          {isOwner && crop.status === 'pending' && (
+            <Button
+              variant="danger"
+              size="sm"
+              icon={<Trash2 size={16} />}
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          )}
+          {isBuyer && crop.status === 'listed' && (
+            <Link to="/buyer/marketplace">
+              <Button variant="primary" size="sm" icon={<ShoppingCart size={16} />}>
+                Go to marketplace to order
               </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                icon={<Trash2 size={16} />}
-                onClick={handleDelete}
-              >
-                Delete
-              </Button>
-            </>
+            </Link>
           )}
         </div>
       </div>
@@ -129,9 +264,9 @@ export const CropDetails: React.FC = () => {
                     <StatusBadge status={crop.status} />
                   </div>
                 </div>
-                {crop.price && (
+                {price !== null && (
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-green-700">₹{crop.price}</p>
+                    <p className="text-2xl font-bold text-green-700">₹{price.toFixed(2)}</p>
                     <p className="text-sm text-gray-500">per {crop.unit}</p>
                   </div>
                 )}
@@ -142,24 +277,26 @@ export const CropDetails: React.FC = () => {
                   <Package className="h-5 w-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">Quantity</p>
-                    <p className="font-semibold">{crop.quantity} {crop.unit}</p>
+                    <p className="font-semibold">{quantity} {crop.unit}</p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center space-x-3">
                   <Calendar className="h-5 w-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">Harvest Date</p>
-                    <p className="font-semibold">{new Date(crop.harvestDate).toLocaleDateString()}</p>
+                    <p className="font-semibold">
+                      {crop.harvest_date ? new Date(crop.harvest_date).toLocaleDateString() : 'N/A'}
+                    </p>
                   </div>
                 </div>
-                
-                {crop.price && (
+
+                {price !== null && (
                   <div className="flex items-center space-x-3">
                     <DollarSign className="h-5 w-5 text-gray-400" />
                     <div>
                       <p className="text-sm text-gray-500">Total Value</p>
-                      <p className="font-semibold">₹{(crop.price * crop.quantity).toLocaleString()}</p>
+                      <p className="font-semibold">₹{(price * quantity).toLocaleString()}</p>
                     </div>
                   </div>
                 )}
@@ -169,6 +306,14 @@ export const CropDetails: React.FC = () => {
                 <div>
                   <h3 className="font-medium text-gray-900 mb-2">Description</h3>
                   <p className="text-gray-600">{crop.description}</p>
+                </div>
+              )}
+
+              {isOwner && crop.status === 'rejected' && crop.rejection_reason && (
+                <div className="mt-4 p-3 bg-red-100 rounded-lg">
+                  <p className="text-sm text-red-800">
+                    <strong>Rejection reason:</strong> {crop.rejection_reason}
+                  </p>
                 </div>
               )}
             </CardContent>
@@ -181,7 +326,7 @@ export const CropDetails: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {crop.images.map((image, index) => (
+                {displayImages.map((image, index) => (
                   <div key={index} className="aspect-square overflow-hidden rounded-lg">
                     <img
                       src={image}
@@ -205,30 +350,6 @@ export const CropDetails: React.FC = () => {
               </CardContent>
             </Card>
           )}
-
-          {/* Orders for this crop */}
-          {cropOrders.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Orders for this Crop</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {cropOrders.map(order => (
-                    <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
-                        <p className="font-medium">Order #{order.id.substring(0, 8)}</p>
-                        <p className="text-sm text-gray-500">
-                          {new Date(order.createdAt).toLocaleDateString()} • ₹{order.totalAmount.toFixed(2)}
-                        </p>
-                      </div>
-                      <StatusBadge status={order.status} />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         {/* Sidebar */}
@@ -246,11 +367,13 @@ export const CropDetails: React.FC = () => {
                   </div>
                   <div className="flex-1">
                     <p className="font-medium text-gray-900">Crop Submitted</p>
-                    <p className="text-sm text-gray-500">Submitted for review</p>
+                    <p className="text-sm text-gray-500">
+                      {crop.created_at ? new Date(crop.created_at).toLocaleDateString() : 'Submitted for review'}
+                    </p>
                   </div>
                 </div>
 
-                {crop.status !== 'pending' && (
+                {['inspected', 'approved', 'listed', 'sold'].includes(crop.status) && (
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0 w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
                       <CheckCircle className="h-4 w-4 text-green-600" />
@@ -262,7 +385,19 @@ export const CropDetails: React.FC = () => {
                   </div>
                 )}
 
-                {['approved', 'listed', 'sold'].includes(crop.status) && (
+                {crop.status === 'rejected' && (
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0 w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                      <AlertCircle className="h-4 w-4 text-red-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">Rejected</p>
+                      <p className="text-sm text-gray-500">Did not pass review</p>
+                    </div>
+                  </div>
+                )}
+
+                {['listed', 'sold'].includes(crop.status) && (
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
                       <Eye className="h-4 w-4 text-purple-600" />
@@ -289,63 +424,41 @@ export const CropDetails: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Quick Stats */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Stats</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-700">{cropOrders.length}</div>
-                <div className="text-sm text-blue-600">Total Orders</div>
-              </div>
-
-              {crop.price && (
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-700">
-                    ₹{(crop.price * crop.quantity).toLocaleString()}
-                  </div>
-                  <div className="text-sm text-green-600">Potential Revenue</div>
-                </div>
-              )}
-
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-700">
-                  {Math.ceil((new Date(crop.harvestDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}
-                </div>
-                <div className="text-sm text-purple-600">Days Since Harvest</div>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {crop.status === 'pending' && (
-                <>
-                  <Button variant="outline" fullWidth icon={<Edit size={16} />}>
-                    Edit Details
+          {(isOwner || (isBuyer && crop.status === 'listed')) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {isOwner && crop.status === 'pending' && (
+                  <Button
+                    variant="danger"
+                    fullWidth
+                    icon={<Trash2 size={16} />}
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? 'Deleting...' : 'Delete Crop'}
                   </Button>
-                  <Button variant="danger" fullWidth icon={<Trash2 size={16} />}>
-                    Delete Crop
-                  </Button>
-                </>
-              )}
-              
-              {crop.status === 'listed' && (
-                <Button variant="outline" fullWidth icon={<Eye size={16} />}>
-                  View on Marketplace
-                </Button>
-              )}
-              
-              <Button variant="outline" fullWidth icon={<Package size={16} />}>
-                Download Report
-              </Button>
-            </CardContent>
-          </Card>
+                )}
+
+                {isOwner && crop.status !== 'pending' && (
+                  <p className="text-sm text-gray-500">
+                    No actions available once a crop has been reviewed.
+                  </p>
+                )}
+
+                {isBuyer && crop.status === 'listed' && (
+                  <Link to="/buyer/marketplace" className="block">
+                    <Button variant="primary" fullWidth icon={<ShoppingCart size={16} />}>
+                      Go to marketplace to order
+                    </Button>
+                  </Link>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

@@ -18,6 +18,7 @@ import { Inspections } from '../pages/agent/Inspections';
 import { AgentProfile } from '../pages/agent/Profile';
 import { AddCropPage } from '../pages/farmer/AddCropPage';
 import { MyCrop } from '../pages/farmer/MyCrop';
+import { CropDetails } from '../pages/farmer/CropDetails';
 import { Orders } from '../pages/farmer/Orders';
 import { BuyerProfile } from '../pages/buyer/BuyerProfile';
 import { MyOrders } from '../pages/buyer/MyOrders';
@@ -90,6 +91,10 @@ const Routes: React.FC = () => {
           element: <ProtectedRoute allowedRoles={['farmer']}><MyCrop /></ProtectedRoute>
         },
         {
+          path: "farmer/crops/:id",
+          element: <ProtectedRoute allowedRoles={['farmer']}><CropDetails /></ProtectedRoute>
+        },
+        {
           path: "farmer/orders",
           element: <ProtectedRoute allowedRoles={['farmer']}><Orders /></ProtectedRoute>
         },
@@ -112,6 +117,10 @@ const Routes: React.FC = () => {
         {
           path: "buyer/marketplace",
           element: <ProtectedRoute allowedRoles={['buyer']}><MarketplacePage /></ProtectedRoute>
+        },
+        {
+          path: "buyer/marketplace/:id",
+          element: <ProtectedRoute allowedRoles={['buyer']}><CropDetails /></ProtectedRoute>
         },
         {
           path: "buyer/profile",
