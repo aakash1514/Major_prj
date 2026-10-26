@@ -16,6 +16,7 @@ import orderRoutes from './routes/orders.js';
 import agentRoutes from './routes/agent.js';
 import adminRoutes from './routes/admin.js';
 import predictionsRoutes from './routes/predictions.js';
+import uploadRoutes from './routes/uploads.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,6 +64,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/predictions', predictionsRoutes);
+app.use('/api/uploads', uploadRoutes);
 
 // ─── ROOT ENDPOINT ───────────────────────────────────────────────────────────
 app.get('/', (req, res) => {

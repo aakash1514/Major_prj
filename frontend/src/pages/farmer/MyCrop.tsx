@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Plus, Search, Eye, Edit, Trash2,
-  Calendar, Package, DollarSign, AlertCircle, X
+  Calendar, Package, DollarSign, AlertCircle, X, Upload
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -14,6 +14,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useAuthStore } from '../../store/authStore';
 import { useCropsStore } from '../../store/cropsStore';
 import { API_URL } from '../../config';
+import { uploadImage, validateImageFile, MAX_CROP_IMAGES } from '../../utils/uploadImage';
 import { Crop } from '../../types';
 
 interface EditForm {
@@ -26,6 +27,11 @@ interface EditForm {
 }
 
 type EditErrors = Partial<Record<keyof EditForm, string>>;
+
+interface NewImage {
+  file: File;
+  previewUrl: string;
+}
 
 // Approved/listed crops are locked after admin review
 const isEditable = (status: Crop['status']) => status === 'pending' || status === 'rejected';
@@ -44,6 +50,21 @@ export const MyCrop: React.FC = () => {
   const [editErrors, setEditErrors] = useState<EditErrors>({});
   const [editError, setEditError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [keptImages, setKeptImages] = useState<string[]>([]);
+  const [newImages, setNewImages] = useState<NewImage[]>([]);
+  const newImagesRef = useRef<NewImage[]>([]);
+  newImagesRef.current = newImages;
+
+  // Revoke any remaining preview URLs on unmount
+  useEffect(() => () => {
+    newImagesRef.current.forEach(image => URL.revokeObjectURL(image.previewUrl));
+  }, []);
+
+  const clearNewImages = () => {
+    newImages.forEach(image => URL.revokeObjectURL(image.previewUrl));
+    setNewImages([]);
+  };
 
   // Fetch crops on mount
   useEffect(() => {
@@ -112,12 +133,50 @@ export const MyCrop: React.FC = () => {
       description: crop.description || '',
       tac: crop.tac || '',
     });
+    setKeptImages(crop.images || []);
+    clearNewImages();
     setEditErrors({});
     setEditError('');
   };
 
   const closeEditModal = () => {
-    if (!isSaving) setEditingCrop(null);
+    if (isSaving) return;
+    clearNewImages();
+    setEditingCrop(null);
+  };
+
+  const handleAddImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    // Reset so selecting the same file again still fires onChange
+    e.target.value = '';
+    if (files.length === 0) return;
+
+    if (keptImages.length + newImages.length + files.length > MAX_CROP_IMAGES) {
+      setEditError(`A crop can have at most ${MAX_CROP_IMAGES} images`);
+      return;
+    }
+    for (const file of files) {
+      const fileError = validateImageFile(file);
+      if (fileError) {
+        setEditError(fileError);
+        return;
+      }
+    }
+
+    setEditError('');
+    setNewImages(prev => [
+      ...prev,
+      ...files.map(file => ({ file, previewUrl: URL.createObjectURL(file) })),
+    ]);
+  };
+
+  const handleRemoveKeptImage = (url: string) => {
+    setKeptImages(prev => prev.filter(image => image !== url));
+  };
+
+  const handleRemoveNewImage = (index: number) => {
+    URL.revokeObjectURL(newImages[index].previewUrl);
+    setNewImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleEditChange = (field: keyof EditForm, value: string) => {
@@ -143,6 +202,19 @@ export const MyCrop: React.FC = () => {
 
     setIsSaving(true);
     setEditError('');
+
+    let uploadedUrls: string[];
+    try {
+      setIsUploading(true);
+      uploadedUrls = await Promise.all(newImages.map(image => uploadImage(image.file, 'crop')));
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : 'Image upload failed');
+      setIsSaving(false);
+      return;
+    } finally {
+      setIsUploading(false);
+    }
+
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/crops/${editingCrop.id}`, {
@@ -158,6 +230,7 @@ export const MyCrop: React.FC = () => {
           price,
           description: editForm.description,
           tac: editForm.tac,
+          images: [...keptImages, ...uploadedUrls],
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -178,8 +251,10 @@ export const MyCrop: React.FC = () => {
         status: updated.status,
         price: updated.price ? Number(updated.price) : 0,
         tac: updated.tac,
+        images: updated.images || [],
       };
       setCrops(crops.map(c => (c.id === updatedCrop.id ? updatedCrop : c)));
+      clearNewImages();
       setEditingCrop(null);
     } catch (error) {
       console.error('Error updating crop:', error);
@@ -537,6 +612,61 @@ export const MyCrop: React.FC = () => {
                   fullWidth
                 />
 
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Crop Images</label>
+                  {keptImages.length + newImages.length > 0 && (
+                    <div className="grid grid-cols-3 gap-3">
+                      {keptImages.map((url, index) => (
+                        <div key={url} className="relative h-20 w-20">
+                          <img src={url} alt={`Crop image ${index + 1}`} className="h-20 w-20 object-cover rounded-md" />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveKeptImage(url)}
+                            disabled={isSaving}
+                            className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 disabled:opacity-50"
+                            aria-label={`Remove image ${index + 1}`}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      {newImages.map((image, index) => (
+                        <div key={image.previewUrl} className="relative h-20 w-20">
+                          <img src={image.previewUrl} alt={`New image ${index + 1}`} className="h-20 w-20 object-cover rounded-md" />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNewImage(index)}
+                            disabled={isSaving}
+                            className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 disabled:opacity-50"
+                            aria-label={`Remove new image ${index + 1}`}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {keptImages.length + newImages.length < MAX_CROP_IMAGES && (
+                    <label
+                      htmlFor="edit-images"
+                      className="inline-flex items-center gap-2 cursor-pointer text-sm font-medium text-green-600 hover:text-green-500"
+                    >
+                      <Upload size={16} />
+                      <span>Add images</span>
+                      <input
+                        id="edit-images"
+                        type="file"
+                        className="sr-only"
+                        multiple
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleAddImages}
+                        disabled={isSaving}
+                      />
+                    </label>
+                  )}
+                  <p className="text-xs text-gray-500">JPG, PNG or WEBP, up to 5 MB each, max 5 images</p>
+                </div>
+
                 {editError && (
                   <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">{editError}</p>
                 )}
@@ -547,7 +677,7 @@ export const MyCrop: React.FC = () => {
                   Cancel
                 </Button>
                 <Button type="submit" variant="primary" disabled={isSaving}>
-                  {isSaving ? 'Saving...' : 'Save Changes'}
+                  {isUploading ? 'Uploading images…' : isSaving ? 'Saving...' : 'Save Changes'}
                 </Button>
               </div>
             </form>

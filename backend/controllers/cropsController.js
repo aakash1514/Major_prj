@@ -1,4 +1,5 @@
 import pool from '../db.js';
+import { isUploadsConfigured, uploadUrlPrefix, MAX_CROP_IMAGES } from '../services/uploads.js';
 
 const CROP_SORTS = {
   newest: 'created_at DESC',
@@ -9,6 +10,31 @@ const CROP_SORTS = {
 
 // Escape LIKE wildcards so user input matches literally
 const likePattern = (value) => `%${String(value).replace(/[\\%_]/g, '\\$&')}%`;
+
+// Object name created by createUploadForm: <uuid>.<ext>, directly under the user's prefix
+const UPLOADED_FILE_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp)$/;
+
+// Returns an error message, or null when valid. New images must be this farmer's
+// S3 uploads; values in allowedExisting (the crop's current images, which may be
+// legacy data: URLs) can be kept or removed, but nothing else can be added.
+const validateCropImages = (images, userId, allowedExisting = []) => {
+  if (images === undefined) return null;
+  if (!Array.isArray(images)) return 'Images must be an array';
+  if (images.length > MAX_CROP_IMAGES) return `A crop can have at most ${MAX_CROP_IMAGES} images`;
+
+  const prefix = uploadUrlPrefix('crop', userId);
+  for (const image of images) {
+    if (typeof image !== 'string') return 'Invalid image';
+    if (allowedExisting.includes(image)) continue;
+    if (image.startsWith('blob:') || image.startsWith('data:')) {
+      return 'Images must be uploaded before saving';
+    }
+    if (!isUploadsConfigured() || !image.startsWith(prefix) || !UPLOADED_FILE_NAME.test(image.slice(prefix.length))) {
+      return 'Invalid image URL';
+    }
+  }
+  return null;
+};
 
 // Public marketplace listing: listed crops only, paginated, with optional
 // ?search= (name/description), ?category= (name/tac), ?minPrice=, ?maxPrice=, ?sort=
@@ -109,21 +135,14 @@ export const createCrop = async (req, res) => {
     const farmerId = req.user.id;
     const { name, quantity, unit, harvest_date, description, images, tac, price } = req.body;
 
-    console.log('📝 Received crop data:', {
-      farmerId,
-      name,
-      quantity,
-      unit,
-      harvest_date,
-      description,
-      images,
-      tac,
-      price
-    });
-
     // Validate required fields
     if (!name || !quantity || !unit) {
       return res.status(400).json({ error: 'Missing required fields: name, quantity, unit' });
+    }
+
+    const imagesError = validateCropImages(images, farmerId);
+    if (imagesError) {
+      return res.status(400).json({ error: imagesError });
     }
 
     const result = await pool.query(
@@ -152,6 +171,21 @@ export const updateCrop = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, quantity, unit, description, images, price, tac } = req.body;
+
+    if (images !== undefined && images !== null) {
+      const existing = await pool.query(
+        'SELECT images FROM crops WHERE id = $1 AND farmer_id = $2',
+        [id, req.user.id]
+      );
+      if (existing.rows.length === 0) {
+        return res.status(404).json({ error: 'Crop not found, not yours, or no longer editable' });
+      }
+
+      const imagesError = validateCropImages(images, req.user.id, existing.rows[0].images || []);
+      if (imagesError) {
+        return res.status(400).json({ error: imagesError });
+      }
+    }
 
     const result = await pool.query(
       "UPDATE crops SET name = COALESCE($1, name), quantity = COALESCE($2, quantity), unit = COALESCE($3, unit), description = COALESCE($4, description), images = COALESCE($5, images), price = COALESCE($6, price), tac = COALESCE($7, tac), status = CASE WHEN status = 'rejected' THEN 'pending' ELSE status END, updated_at = CURRENT_TIMESTAMP WHERE id = $8 AND farmer_id = $9 AND status IN ('pending', 'rejected') RETURNING *",

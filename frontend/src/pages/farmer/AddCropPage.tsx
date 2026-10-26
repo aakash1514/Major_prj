@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { motion } from 'framer-motion';
-import { Upload, Check, ArrowLeft } from 'lucide-react';
+import { Upload, X, ArrowLeft } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -14,6 +14,7 @@ import { useCropsStore } from '../../store/cropsStore';
 import { usePredictionsStore } from '../../store/predictionsStore';
 import { Crop } from '../../types';
 import { API_URL } from '../../config';
+import { uploadImage, validateImageFile, MAX_CROP_IMAGES } from '../../utils/uploadImage';
 
 interface AddCropFormData {
   name: string;
@@ -21,7 +22,6 @@ interface AddCropFormData {
   unit: string;
   harvest_date: string;
   description: string;
-  images: FileList;
   price: number;
   category: string;
 }
@@ -31,6 +31,11 @@ const encodeTextToNumber = (value: string) => {
     .split('')
     .reduce((sum, char) => sum + char.charCodeAt(0), 0);
 };
+
+interface SelectedImage {
+  file: File;
+  previewUrl: string;
+}
 
 const getWeekday = (date: Date) => {
   const day = date.getDay();
@@ -43,7 +48,17 @@ export const AddCropPage: React.FC = () => {
   const { addCrop } = useCropsStore();
   const { fetchPricePrediction } = usePredictionsStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
+  const [imageError, setImageError] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const selectedImagesRef = useRef<SelectedImage[]>([]);
+  selectedImagesRef.current = selectedImages;
+
+  // Revoke any remaining preview URLs on unmount
+  useEffect(() => () => {
+    selectedImagesRef.current.forEach(image => URL.revokeObjectURL(image.previewUrl));
+  }, []);
   
   const { register, handleSubmit, watch, formState: { errors } } = useForm<AddCropFormData>();
 
@@ -93,24 +108,71 @@ export const AddCropPage: React.FC = () => {
     };
   }, [fetchPricePrediction, pricePredictionInput]);
   
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    
-    // In a real app, you would upload these files to a server
-    // Here we'll just create local URLs for preview
-    const imageUrls: string[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const url = URL.createObjectURL(files[i]);
-      imageUrls.push(url);
+  const addFiles = (files: File[]) => {
+    if (files.length === 0) return;
+
+    if (selectedImages.length + files.length > MAX_CROP_IMAGES) {
+      setImageError(`You can add at most ${MAX_CROP_IMAGES} images`);
+      return;
     }
-    
-    setUploadedImages(imageUrls);
+    for (const file of files) {
+      const fileError = validateImageFile(file);
+      if (fileError) {
+        setImageError(fileError);
+        return;
+      }
+    }
+
+    setImageError('');
+    setSelectedImages(prev => [
+      ...prev,
+      ...files.map(file => ({ file, previewUrl: URL.createObjectURL(file) })),
+    ]);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    // Reset so selecting the same file again still fires onChange
+    e.target.value = '';
+    addFiles(files);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDragging(true);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (isSubmitting) return;
+    addFiles(Array.from(e.dataTransfer.files));
+  };
+
+  const handleRemoveImage = (index: number) => {
+    URL.revokeObjectURL(selectedImages[index].previewUrl);
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setImageError('');
   };
   
   const onSubmit = async (data: AddCropFormData) => {
   if (!user) return;
   setIsSubmitting(true);
+  setImageError('');
+
+  let images: string[];
+  try {
+    setIsUploading(true);
+    images = await Promise.all(selectedImages.map(image => uploadImage(image.file, 'crop')));
+  } catch (error) {
+    setImageError(error instanceof Error ? error.message : 'Image upload failed');
+    setIsSubmitting(false);
+    return;
+  } finally {
+    setIsUploading(false);
+  }
 
   try {
     // Send as JSON (not FormData)
@@ -122,10 +184,8 @@ export const AddCropPage: React.FC = () => {
       price: Number(data.price),
       description: data.description,
       tac: data.category,
-      images: uploadedImages
+      images
     };
-
-    console.log('📤 Sending crop payload:', payload);
 
     const token = localStorage.getItem('token');
     const response = await fetch(`${API_URL}/crops`, {
@@ -296,7 +356,14 @@ export const AddCropPage: React.FC = () => {
                 Crop Images
               </label>
               
-              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md transition-colors ${
+                  isDragging ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                }`}
+              >
                 <div className="space-y-2 text-center">
                   <Upload className="mx-auto h-12 w-12 text-gray-400" />
                   <div className="flex text-sm text-gray-600">
@@ -310,31 +377,41 @@ export const AddCropPage: React.FC = () => {
                         type="file"
                         className="sr-only"
                         multiple
-                        accept="image/*"
-                        {...register('images')}
+                        accept="image/jpeg,image/png,image/webp"
                         onChange={handleImageUpload}
+                        disabled={isSubmitting}
                       />
                     </label>
                     <p className="pl-1">or drag and drop</p>
                   </div>
                   <p className="text-xs text-gray-500">
-                    PNG, JPG, GIF up to 10MB
+                    JPG, PNG or WEBP, up to 5 MB each, max 5 images
                   </p>
                 </div>
               </div>
               
-              {uploadedImages.length > 0 && (
+              {imageError && (
+                <p className="text-sm text-red-600">{imageError}</p>
+              )}
+
+              {selectedImages.length > 0 && (
                 <div className="mt-4 grid grid-cols-3 gap-4">
-                  {uploadedImages.map((url, index) => (
-                    <div key={index} className="relative">
+                  {selectedImages.map((image, index) => (
+                    <div key={image.previewUrl} className="relative h-24 w-24">
                       <img
-                        src={url}
-                        alt={`Uploaded image ${index + 1}`}
+                        src={image.previewUrl}
+                        alt={`Selected image ${index + 1}`}
                         className="h-24 w-24 object-cover rounded-md"
                       />
-                      <div className="absolute top-0 right-0 bg-green-500 text-white p-1 rounded-full">
-                        <Check size={12} />
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(index)}
+                        disabled={isSubmitting}
+                        className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 disabled:opacity-50"
+                        aria-label={`Remove image ${index + 1}`}
+                      >
+                        <X size={12} />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -349,16 +426,14 @@ export const AddCropPage: React.FC = () => {
           >
             Cancel
           </Button>
-         <form onSubmit={handleSubmit(onSubmit)} id="add-crop-form">
-  {/* form fields */}
-
-  <Button
-    type="submit"
-    disabled={isSubmitting}
-  >
-    Submit
-  </Button>
-</form>
+          {/* Lives outside the form, so it submits it by id */}
+          <Button
+            type="submit"
+            form="add-crop-form"
+            disabled={isSubmitting}
+          >
+            {isUploading ? 'Uploading images…' : 'Submit'}
+          </Button>
 
         </CardFooter>
       </Card>
