@@ -3,9 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Plus, Search, Eye, Edit, Trash2,
-  Calendar, Package, DollarSign, AlertCircle, X, Upload
+  Package, DollarSign, AlertCircle, X, Upload
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
+import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -488,48 +488,6 @@ export const MyCrop: React.FC = () => {
           </CardContent>
         </Card>
       )}
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Link to="/farmer/add-crop">
-              <div className="p-4 border border-green-200 rounded-lg hover:bg-green-50 transition-colors cursor-pointer">
-                <div className="flex items-center">
-                  <Plus className="h-8 w-8 text-green-600 mr-3" />
-                  <div>
-                    <h4 className="font-medium text-gray-900">Add New Crop</h4>
-                    <p className="text-sm text-gray-500">Submit a new crop for approval</p>
-                  </div>
-                </div>
-              </div>
-            </Link>
-
-            <div className="p-4 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer">
-              <div className="flex items-center">
-                <Calendar className="h-8 w-8 text-blue-600 mr-3" />
-                <div>
-                  <h4 className="font-medium text-gray-900">Schedule Harvest</h4>
-                  <p className="text-sm text-gray-500">Plan your upcoming harvests</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 border border-purple-200 rounded-lg hover:bg-purple-50 transition-colors cursor-pointer">
-              <div className="flex items-center">
-                <DollarSign className="h-8 w-8 text-purple-600 mr-3" />
-                <div>
-                  <h4 className="font-medium text-gray-900">Price Analytics</h4>
-                  <p className="text-sm text-gray-500">View market price trends</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Edit Crop Modal */}
       {editingCrop && (

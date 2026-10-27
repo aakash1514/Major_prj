@@ -19,7 +19,7 @@ interface BuyerOrder {
   id: string;
   buyer_id: string;
   crop_id: string;
-  status: 'pending' | 'confirmed' | 'assigned' | 'in-transit' | 'delivered';
+  status: 'pending' | 'confirmed' | 'assigned' | 'in-transit' | 'delivered' | 'cancelled';
   payment_status: 'pending' | 'advance-paid' | 'fully-paid';
   advance_amount: number;
   total_amount: number;
@@ -218,7 +218,7 @@ export const MyOrders: React.FC = () => {
   };
 
   const handlePayNow = async (order: BuyerOrder) => {
-    if (order.payment_status === 'fully-paid') {
+    if (order.status === 'cancelled' || order.payment_status === 'fully-paid') {
       return;
     }
 
@@ -523,11 +523,15 @@ export const MyOrders: React.FC = () => {
                             <User className="h-4 w-4 text-gray-400 mr-2" />
                             <div>
                               <p className="text-gray-500">Payment Status</p>
-                              <Badge 
-                                variant={order.payment_status === 'fully-paid' ? 'success' : 'warning'}
-                              >
-                                {order.payment_status.replace('-', ' ').toUpperCase()}
-                              </Badge>
+                              {order.status === 'cancelled' ? (
+                                <Badge variant="default">Cancelled</Badge>
+                              ) : (
+                                <Badge 
+                                  variant={order.payment_status === 'fully-paid' ? 'success' : 'warning'}
+                                >
+                                  {order.payment_status.replace('-', ' ').toUpperCase()}
+                                </Badge>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -553,7 +557,7 @@ export const MyOrders: React.FC = () => {
 
                       {/* Actions */}
                       <div className="flex flex-row sm:flex-col gap-2 lg:w-32">
-                        {order.payment_status !== 'fully-paid' && (
+                        {order.status !== 'cancelled' && order.payment_status !== 'fully-paid' && (
                           <Button
                             variant="primary"
                             size="sm"
@@ -708,9 +712,13 @@ export const MyOrders: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-gray-500">Payment Status</p>
-                      <Badge variant={selectedOrder.payment_status === 'fully-paid' ? 'success' : 'warning'}>
-                        {selectedOrder.payment_status.replace('-', ' ').toUpperCase()}
-                      </Badge>
+                      {selectedOrder.status === 'cancelled' ? (
+                        <Badge variant="default">Cancelled</Badge>
+                      ) : (
+                        <Badge variant={selectedOrder.payment_status === 'fully-paid' ? 'success' : 'warning'}>
+                          {selectedOrder.payment_status.replace('-', ' ').toUpperCase()}
+                        </Badge>
+                      )}
                     </div>
                     <div className="col-span-2">
                       <p className="text-gray-500">Order Date</p>

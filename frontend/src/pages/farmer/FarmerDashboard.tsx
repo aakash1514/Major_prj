@@ -53,6 +53,7 @@ interface DashboardStats {
     quantity: number;
     unit: string;
     description: string;
+    images?: string[];
   }>;
   recentOrders: Array<{
     id: string;

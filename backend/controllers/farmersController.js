@@ -212,7 +212,7 @@ export const getFarmerDashboardStats = async (req, res) => {
 
     // Get recent crops (last 6)
     const recentCropsResult = await pool.query(
-      `SELECT id, name, status, created_at, price, quantity, unit, description
+      `SELECT id, name, status, created_at, price, quantity, unit, description, images
        FROM crops
        WHERE farmer_id = $1
        ORDER BY created_at DESC

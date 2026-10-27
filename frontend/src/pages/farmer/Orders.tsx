@@ -4,7 +4,7 @@ import {
   Package, Clock, CheckCircle, Truck, DollarSign, 
   Eye, Calendar, User, X, MapPin
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
+import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -569,55 +569,6 @@ export const Orders: React.FC = () => {
           </div>
         );
       })()}
-
-      {/* Recent Activity */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Order Activity</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-md">
-              <div className="flex-shrink-0 pt-1">
-                <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-800">
-                  New order received for <span className="font-medium">Organic Wheat</span>
-                </p>
-                <p className="text-xs text-gray-500 mt-1">2 hours ago</p>
-              </div>
-              <Badge variant="info">New</Badge>
-            </div>
-            
-            <div className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-md">
-              <div className="flex-shrink-0 pt-1">
-                <div className="h-2 w-2 rounded-full bg-green-500"></div>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-800">
-                  Order <span className="font-medium">#12345</span> has been delivered
-                </p>
-                <p className="text-xs text-gray-500 mt-1">1 day ago</p>
-              </div>
-              <Badge variant="success">Completed</Badge>
-            </div>
-            
-            <div className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-md">
-              <div className="flex-shrink-0 pt-1">
-                <div className="h-2 w-2 rounded-full bg-amber-500"></div>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-gray-800">
-                  Payment received for <span className="font-medium">Fresh Tomatoes</span>
-                </p>
-                <p className="text-xs text-gray-500 mt-1">2 days ago</p>
-              </div>
-              <Badge variant="warning">Payment</Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };
