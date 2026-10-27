@@ -34,6 +34,8 @@ interface Order {
   advance_amount: number;
   quantity: number;
   transporter_id: string | null;
+  delivery_address?: string | null;
+  delivery_contact?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -516,6 +518,18 @@ export const AdminOrders: React.FC = () => {
                       <div className="flex justify-between">
                         <span className="text-gray-500">Status:</span>
                         <StatusBadge status={selectedOrderData.status} />
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Delivery Address:</span>
+                        {selectedOrderData.delivery_address ? (
+                          <p className="font-medium mt-1 whitespace-pre-line break-words">{selectedOrderData.delivery_address}</p>
+                        ) : (
+                          <p className="font-medium mt-1 text-red-600">No delivery address — cannot be dispatched</p>
+                        )}
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Mobile Number:</span>
+                        <span className="font-medium">{selectedOrderData.delivery_contact || 'Not provided'}</span>
                       </div>
                     </div>
                   </div>

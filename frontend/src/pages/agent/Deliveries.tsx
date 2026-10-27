@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Search, Truck, CheckCircle, Calendar, DollarSign, User,
-  Package, Clock, MapPin, Eye, X, Send, Upload, MessageSquare
+  Package, Clock, MapPin, Eye, X, Send, Upload, MessageSquare, Phone, AlertTriangle
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -25,6 +25,8 @@ interface Order {
   advance_amount: number;
   quantity: number;
   transporter_id: string | null;
+  delivery_address: string | null;
+  delivery_contact: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -296,6 +298,29 @@ export const Deliveries: React.FC = () => {
                           <p className="text-gray-500 text-sm">Amount</p>
                           <p className="font-semibold text-green-700">₹{order.total_amount.toFixed(2)}</p>
                         </div>
+                        <div className="md:col-span-2">
+                          {order.delivery_address ? (
+                            <div className="text-sm space-y-1">
+                              <p className="flex items-start text-gray-800">
+                                <MapPin size={14} className="mr-2 mt-0.5 flex-shrink-0 text-gray-400" />
+                                <span className="whitespace-pre-line break-words">{order.delivery_address}</span>
+                              </p>
+                              {order.delivery_contact && (
+                                <p className="flex items-center text-gray-800">
+                                  <Phone size={14} className="mr-2 flex-shrink-0 text-gray-400" />
+                                  <a href={`tel:+91${order.delivery_contact}`} className="hover:underline">
+                                    {order.delivery_contact}
+                                  </a>
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="flex items-center text-sm font-medium text-red-600">
+                              <AlertTriangle size={14} className="mr-2 flex-shrink-0" />
+                              No delivery address
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -388,8 +413,34 @@ export const Deliveries: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Delivery Address */}
+                <div>
+                  <h3 className="font-medium text-gray-900 mb-3">Deliver To</h3>
+                  {selectedOrderData.delivery_address ? (
+                    <div className="text-sm space-y-2">
+                      <p className="flex items-start text-gray-800">
+                        <MapPin size={16} className="mr-2 mt-0.5 flex-shrink-0 text-gray-400" />
+                        <span className="whitespace-pre-line break-words">{selectedOrderData.delivery_address}</span>
+                      </p>
+                      {selectedOrderData.delivery_contact && (
+                        <p className="flex items-center text-gray-800">
+                          <Phone size={16} className="mr-2 flex-shrink-0 text-gray-400" />
+                          <a href={`tel:+91${selectedOrderData.delivery_contact}`} className="hover:underline">
+                            {selectedOrderData.delivery_contact}
+                          </a>
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center p-3 bg-red-50 text-red-700 rounded-md text-sm font-medium">
+                      <AlertTriangle size={16} className="mr-2 flex-shrink-0" />
+                      No delivery address — this order cannot be dispatched. Contact the admin.
+                    </div>
+                  )}
+                </div>
+
                 {/* Delivery Status Actions */}
-                {selectedOrderData.status === 'assigned' && (
+                {selectedOrderData.delivery_address && selectedOrderData.status === 'assigned' && (
                   <div className="border-t pt-6">
                     <h3 className="font-medium text-gray-900 mb-3">Start Pickup & Transit</h3>
                     <p className="text-gray-600 text-sm mb-4">
@@ -416,7 +467,7 @@ export const Deliveries: React.FC = () => {
                   </div>
                 )}
 
-                {selectedOrderData.status === 'in-transit' && (
+                {selectedOrderData.delivery_address && selectedOrderData.status === 'in-transit' && (
                   <div className="border-t pt-6">
                     <h3 className="font-medium text-gray-900 mb-3">Complete Delivery</h3>
                     <div className="space-y-4">

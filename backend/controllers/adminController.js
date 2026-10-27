@@ -393,6 +393,14 @@ export const assignTransporterToOrder = async (req, res) => {
       return res.status(400).json({ error: 'transporterId is required' });
     }
 
+    const existing = await pool.query('SELECT delivery_address FROM orders WHERE id = $1', [orderId]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    if (!existing.rows[0].delivery_address) {
+      return res.status(400).json({ error: 'This order has no delivery address and cannot be dispatched' });
+    }
+
     const result = await pool.query(
       `UPDATE orders
        SET transporter_id = $1,

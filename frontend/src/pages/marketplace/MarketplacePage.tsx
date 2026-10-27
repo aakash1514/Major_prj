@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, Filter, Search, SlidersHorizontal, X } from 'lu
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { Textarea } from '../../components/ui/Textarea';
 import { Select } from '../../components/ui/Select';
 import { PredictionPanel } from '../../components/common/PredictionPanel';
 import { useAuthStore } from '../../store/authStore';
@@ -60,6 +61,25 @@ const resolveImageUrl = (value?: string) => {
   return value;
 };
 
+interface BuyerDeliveryProfile {
+  location?: string | null;
+  contact_number?: string | null;
+}
+
+// Same rules as the backend (ordersController.createOrder)
+const getAddressError = (address: string) => {
+  const length = address.trim().length;
+  return length < 10 || length > 500 ? 'Please enter a full delivery address' : '';
+};
+
+const normalizeMobile = (value: string) => {
+  const digits = value.replace(/[\s-]/g, '').replace(/^(\+91|0)/, '');
+  return /^[6-9]\d{9}$/.test(digits) ? digits : null;
+};
+
+const getContactError = (contact: string) =>
+  normalizeMobile(contact) ? '' : 'Please enter a valid 10-digit mobile number';
+
 export const MarketplacePage: React.FC = () => {
   const { user } = useAuthStore();
   const [listedCrops, setListedCrops] = useState<Crop[]>([]);
@@ -71,6 +91,11 @@ export const MarketplacePage: React.FC = () => {
   const [orderQuantity, setOrderQuantity] = useState<number>(1);
   const [advanceAmount, setAdvanceAmount] = useState<number>(0);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [buyerProfile, setBuyerProfile] = useState<BuyerDeliveryProfile | null>(null);
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryContact, setDeliveryContact] = useState('');
+  const [deliveryTouched, setDeliveryTouched] = useState({ address: false, contact: false });
+  const [orderError, setOrderError] = useState('');
   const [showMarketInsights, setShowMarketInsights] = useState(false);
   const [filters, setFilters] = useState({
     minPrice: '',
@@ -198,6 +223,47 @@ export const MarketplacePage: React.FC = () => {
   // Search, filters and sorting are applied server-side (GET /api/crops query params)
   const sortedCrops = listedCrops;
 
+  // Delivery details are pre-filled from the buyer's profile each time the order modal opens
+  const openOrderModal = (cropId: string) => {
+    setSelectedCrop(cropId);
+    setDeliveryAddress(buyerProfile?.location || '');
+    setDeliveryContact(buyerProfile?.contact_number || '');
+    setDeliveryTouched({ address: false, contact: false });
+    setOrderError('');
+  };
+
+  // Fetch the buyer's profile once, the first time the order modal opens
+  useEffect(() => {
+    if (!selectedCrop || user?.role !== 'buyer' || buyerProfile) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`${API_URL}/buyers/profile`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            'ngrok-skip-browser-warning': 'true',
+          },
+        });
+        if (!response.ok) return;
+        const data: BuyerDeliveryProfile = await response.json();
+        if (cancelled) return;
+        setBuyerProfile(data);
+        // Don't overwrite anything the buyer typed while the profile was loading
+        setDeliveryAddress(prev => prev || data.location || '');
+        setDeliveryContact(prev => prev || data.contact_number || '');
+      } catch (error) {
+        console.error('Error fetching buyer profile:', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCrop, user?.role, buyerProfile]);
+
+  const addressError = getAddressError(deliveryAddress);
+  const contactError = getContactError(deliveryContact);
+
   const handlePlaceOrder = async (crop: Crop) => {
     if (!user || user.role !== 'buyer') {
       alert('Only buyers can place orders. Please log in as a buyer.');
@@ -209,8 +275,14 @@ export const MarketplacePage: React.FC = () => {
       return;
     }
 
+    if (addressError || contactError) {
+      setDeliveryTouched({ address: true, contact: true });
+      return;
+    }
+
     try {
       setIsPlacingOrder(true);
+      setOrderError('');
       const token = localStorage.getItem('token');
       const totalAmount = (crop.price || 0) * orderQuantity;
 
@@ -226,6 +298,8 @@ export const MarketplacePage: React.FC = () => {
           quantity: orderQuantity,
           advanceAmount: advanceAmount || 0,
           totalAmount: totalAmount,
+          deliveryAddress: deliveryAddress.trim(),
+          deliveryContact: normalizeMobile(deliveryContact),
         }),
       });
 
@@ -240,7 +314,7 @@ export const MarketplacePage: React.FC = () => {
       } else {
         const error = await response.json();
         console.error('Failed to create order:', error);
-        alert('Failed to place order: ' + (error.error || 'Unknown error'));
+        setOrderError(error.error || 'Failed to place order');
       }
     } catch (error) {
       console.error('Error placing order:', error);
@@ -467,7 +541,7 @@ export const MarketplacePage: React.FC = () => {
                         <Button
                           variant="primary"
                           size="sm"
-                          onClick={() => setSelectedCrop(crop.id)}
+                          onClick={() => openOrderModal(crop.id)}
                           fullWidth
                         >
                           Place Order
@@ -514,7 +588,7 @@ export const MarketplacePage: React.FC = () => {
             const totalAmount = (crop.price || 0) * orderQuantity;
 
             return (
-              <Card className="max-w-md w-full">
+              <Card className="max-w-md w-full max-h-[90vh] overflow-y-auto">
                 <CardContent className="p-6">
                   <div className="flex justify-between items-start mb-4">
                     <h2 className="text-xl font-bold text-gray-900">Place Order</h2>
@@ -584,6 +658,36 @@ export const MarketplacePage: React.FC = () => {
                       </p>
                     </div>
 
+                    {/* Delivery Details */}
+                    <Textarea
+                      label="Delivery address"
+                      rows={3}
+                      maxLength={500}
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      onBlur={() => setDeliveryTouched(prev => ({ ...prev, address: true }))}
+                      placeholder="House / street, village or city, district, PIN code"
+                      error={deliveryTouched.address || deliveryAddress ? addressError : undefined}
+                      required
+                      fullWidth
+                    />
+                    <Input
+                      label="Mobile number"
+                      type="tel"
+                      inputMode="tel"
+                      value={deliveryContact}
+                      onChange={(e) => setDeliveryContact(e.target.value)}
+                      onBlur={() => setDeliveryTouched(prev => ({ ...prev, contact: true }))}
+                      placeholder="98765 43210"
+                      error={deliveryTouched.contact || deliveryContact ? contactError : undefined}
+                      required
+                      fullWidth
+                    />
+
+                    {orderError && (
+                      <div className="p-3 bg-red-50 text-red-700 rounded-md text-sm">{orderError}</div>
+                    )}
+
                     {/* Action Buttons */}
                     <div className="flex gap-2 pt-4">
                       <Button
@@ -596,7 +700,7 @@ export const MarketplacePage: React.FC = () => {
                       <Button
                         variant="primary"
                         onClick={() => handlePlaceOrder(crop)}
-                        disabled={isPlacingOrder}
+                        disabled={isPlacingOrder || !!addressError || !!contactError}
                         fullWidth
                       >
                         {isPlacingOrder ? 'Placing Order...' : 'Place Order'}

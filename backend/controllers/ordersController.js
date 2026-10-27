@@ -50,6 +50,12 @@ const createPaymentAuditEntry = async ({
 const createCheckoutToken = (userId, orderId) =>
   jwt.sign({ userId, orderId, purpose: 'checkout' }, JWT_SECRET, { expiresIn: '15m' });
 
+// Strips spaces, dashes and a leading +91/0; returns a 10-digit Indian mobile number or null
+const normalizeMobile = (value) => {
+  const digits = String(value ?? '').replace(/[\s-]/g, '').replace(/^(\+91|0)/, '');
+  return /^[6-9]\d{9}$/.test(digits) ? digits : null;
+};
+
 const verifyTokenFromQuery = (req) => {
   const token = typeof req.query.token === 'string' ? req.query.token : null;
   if (!token) {
@@ -79,6 +85,15 @@ export const createOrder = async (req, res) => {
       return res.status(400).json({ error: 'cropId and a positive quantity are required' });
     }
 
+    const deliveryAddress = typeof req.body.deliveryAddress === 'string' ? req.body.deliveryAddress.trim() : '';
+    if (deliveryAddress.length < 10 || deliveryAddress.length > 500) {
+      return res.status(400).json({ error: 'Please enter a full delivery address' });
+    }
+    const deliveryContact = normalizeMobile(req.body.deliveryContact);
+    if (!deliveryContact) {
+      return res.status(400).json({ error: 'Please enter a valid 10-digit mobile number' });
+    }
+
     const cropResult = await pool.query(
       'SELECT price, quantity, status FROM crops WHERE id = $1',
       [cropId]
@@ -106,10 +121,11 @@ export const createOrder = async (req, res) => {
     }
 
     const result = await pool.query(
-      `INSERT INTO orders (buyer_id, crop_id, quantity, advance_amount, total_amount, status, payment_status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO orders (buyer_id, crop_id, quantity, advance_amount, total_amount, status, payment_status,
+                           delivery_address, delivery_contact)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [buyerId, cropId, quantity, advance, totalAmount, 'pending', 'pending']
+      [buyerId, cropId, quantity, advance, totalAmount, 'pending', 'pending', deliveryAddress, deliveryContact]
     );
 
     res.status(201).json({
@@ -185,6 +201,7 @@ export const getOrderById = async (req, res) => {
 const ORDER_STATUSES = ['pending', 'confirmed', 'assigned', 'in-transit', 'delivered'];
 const CANCELLABLE_STATUSES = ['pending', 'confirmed', 'assigned'];
 const AGENT_ORDER_STATUSES = ['assigned', 'in-transit', 'delivered'];
+const DISPATCH_STATUSES = ['assigned', 'in-transit', 'delivered'];
 
 // Update order status
 // admin: any field; agent: delivery fields on orders assigned to them;
@@ -196,7 +213,7 @@ export const updateOrderStatus = async (req, res) => {
     const { status, paymentStatus, transporter_id, deliveryNotes, deliveryProof } = req.body;
 
     const check = await pool.query(
-      'SELECT o.status, o.transporter_id, c.farmer_id FROM orders o JOIN crops c ON o.crop_id = c.id WHERE o.id = $1',
+      'SELECT o.status, o.transporter_id, o.delivery_address, c.farmer_id FROM orders o JOIN crops c ON o.crop_id = c.id WHERE o.id = $1',
       [id]
     );
     if (check.rows.length === 0) {
@@ -213,6 +230,9 @@ export const updateOrderStatus = async (req, res) => {
     }
     if (paymentStatus !== undefined && !PAYMENT_STATUSES.includes(paymentStatus)) {
       return res.status(400).json({ error: `paymentStatus must be one of: ${PAYMENT_STATUSES.join(', ')}` });
+    }
+    if (DISPATCH_STATUSES.includes(status) && !current.delivery_address) {
+      return res.status(400).json({ error: 'This order has no delivery address and cannot be dispatched' });
     }
 
     if (role === 'agent') {

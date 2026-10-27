@@ -27,6 +27,8 @@ interface BuyerOrder {
   transporter_id?: string;
   delivery_notes?: string | null;
   delivery_proof?: string | null;
+  delivery_address?: string | null;
+  delivery_contact?: string | null;
   paid_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -723,6 +725,16 @@ export const MyOrders: React.FC = () => {
                     <div className="col-span-2">
                       <p className="text-gray-500">Order Date</p>
                       <p className="font-medium">{new Date(selectedOrder.created_at).toLocaleString()}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-gray-500">Delivery Address</p>
+                      <p className="font-medium whitespace-pre-line break-words">
+                        {selectedOrder.delivery_address || 'Not provided'}
+                      </p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-gray-500">Mobile Number</p>
+                      <p className="font-medium">{selectedOrder.delivery_contact || 'Not provided'}</p>
                     </div>
                   </div>
 

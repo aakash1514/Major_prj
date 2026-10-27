@@ -137,7 +137,9 @@ export const initDatabase = async () => {
       ADD COLUMN IF NOT EXISTS farmer_paid_by UUID REFERENCES users(id) ON DELETE SET NULL,
       ADD COLUMN IF NOT EXISTS settlement_note TEXT,
       ADD COLUMN IF NOT EXISTS delivery_notes TEXT,
-      ADD COLUMN IF NOT EXISTS delivery_proof TEXT
+      ADD COLUMN IF NOT EXISTS delivery_proof TEXT,
+      ADD COLUMN IF NOT EXISTS delivery_address TEXT,
+      ADD COLUMN IF NOT EXISTS delivery_contact VARCHAR(20)
     `);
 
     // Allow 'cancelled' on existing installations (CREATE TABLE IF NOT EXISTS won't update the CHECK)
