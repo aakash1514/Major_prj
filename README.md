@@ -2,6 +2,8 @@
 
 Full stack marketplace for agriculture: backend API, web frontend, mobile app, and ML service.
 
+**Live:** https://agriflow.me · **API health:** https://api.agriflow.me/api/health
+
 ## Tech Stack
 
 - Backend: Node.js + Express + PostgreSQL
@@ -119,6 +121,17 @@ If you expose the backend with ngrok, set `VITE_API_URL` / `EXPO_PUBLIC_API_URL`
 - ml_service
 - shared
 
+## Deployment (AWS)
+
+![AgriFlow AWS architecture](docs/agriflow_aws_architecture.png)
+
+- **Frontend:** React build on S3, served by CloudFront at `agriflow.me` (HTTPS via ACM).
+- **API:** Docker Compose on EC2 (t3.small): Nginx with Let's Encrypt HTTPS → Node/Express API → Python ML service (Random Forest + XGBoost). Domain `api.agriflow.me` via Route 53.
+- **Data:** RDS PostgreSQL 18 (not publicly accessible, TLS); ML models loaded from S3 at startup.
+- **Images:** uploaded directly from the browser to a private S3 bucket using presigned POST (type and 5 MB size enforced by S3), served through CloudFront at `/uploads/*`.
+- **Config and logs:** secrets in SSM Parameter Store, container logs in CloudWatch, EC2 managed via Session Manager (no SSH).
+- **CI/CD:** GitHub Actions with OIDC (no stored AWS keys). Pushes to `main` redeploy the backend via SSM Run Command or rebuild the frontend to S3 with a CloudFront invalidation.
+
 ## Performance
 
 Measured with k6 load tests (50 concurrent users, 60 s runs, median of 3) against PostgreSQL seeded with 10,000 orders and 2,000 crops, all on localhost. ML rows: median of 200 sequential requests, median of 3 runs.
@@ -145,3 +158,16 @@ Same seeded data volumes and hardware throughout.
 - **In-memory model caching** in the ML service: models load once at startup instead of on every request (both sides measured under waitress). The price model is a scikit-learn Random Forest and the demand model is XGBoost.
 
 Raw numbers: [perf/results/summary-2026-10-13.json](perf/results/summary-2026-10-13.json). To reproduce, see [perf/README.md](perf/README.md).
+
+### Production load test (live AWS deployment)
+
+k6 from a laptop in Pune against `https://api.agriflow.me`: 10 concurrent browsing users (1–3 s think time) plus 1 ML price prediction per second, 3 minutes. Script: [perf/load/prod.js](perf/load/prod.js).
+
+| Metric | Result |
+|---|---:|
+| Requests | 879 |
+| Error rate | 0% |
+| Browsing API p95 / median | 60 ms / 13 ms |
+| Price prediction p95 / median | 198 ms / 172 ms |
+
+Raw numbers: [perf/results/prod-2026-10-27.json](perf/results/prod-2026-10-27.json).

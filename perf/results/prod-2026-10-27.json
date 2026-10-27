@@ -1,0 +1,199 @@
+{
+    "metrics": {
+        "http_req_receiving": {
+            "max": 122.8364,
+            "min": 0,
+            "med": 0.3402,
+            "p(90)": 36.6255,
+            "p(95)": 39.86070999999999,
+            "p(99)": 46.668978
+        },
+        "checks": {
+            "fails": 0,
+            "passes": 877,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "data_received": {
+            "count": 30186140,
+            "rate": 166472.86936160512
+        },
+        "http_req_duration{expected_response:true}": {
+            "p(90)": 169.89306,
+            "p(95)": 174.81418999999994,
+            "p(99)": 185.20728800000006,
+            "max": 244.007,
+            "min": 9.6095,
+            "med": 13.9326
+        },
+        "iteration_duration": {
+            "min": 165.303,
+            "med": 3997.9576,
+            "p(90)": 6116.09418,
+            "p(95)": 6696.181869999999,
+            "p(99)": 7467.375552000003,
+            "max": 8288.5931
+        },
+        "http_req_blocked": {
+            "min": 0,
+            "med": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "p(99)": 37.99010200000002,
+            "max": 83.7614
+        },
+        "http_req_sending": {
+            "p(90)": 1.04552,
+            "p(95)": 1.229249999999999,
+            "p(99)": 1.82563,
+            "max": 4.9364,
+            "min": 0,
+            "med": 0.5292
+        },
+        "http_req_duration": {
+            "min": 9.6095,
+            "med": 13.9326,
+            "p(90)": 169.89306,
+            "p(95)": 174.81418999999994,
+            "p(99)": 185.20728800000006,
+            "max": 244.007
+        },
+        "data_sent": {
+            "rate": 947.3512006439342,
+            "count": 171781
+        },
+        "http_req_duration{scenario:ml_price}": {
+            "min": 165.303,
+            "med": 172.21985,
+            "p(90)": 184.04646,
+            "p(95)": 198.20320499999997,
+            "p(99)": 241.09633,
+            "max": 244.007,
+            "thresholds": {
+                "p(95)<3000": false
+            }
+        },
+        "http_req_tls_handshaking": {
+            "p(90)": 0,
+            "p(95)": 0,
+            "p(99)": 25.233054000000017,
+            "max": 45.3642,
+            "min": 0,
+            "med": 0
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 879,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0
+        },
+        "http_reqs": {
+            "count": 879,
+            "rate": 4.847577469953127
+        },
+        "http_req_connecting": {
+            "med": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "p(99)": 11.051578,
+            "max": 18.5775,
+            "min": 0
+        },
+        "iterations": {
+            "rate": 2.4651503174846963,
+            "count": 447
+        },
+        "http_req_duration{scenario:browse}": {
+            "min": 9.6095,
+            "med": 13.4191,
+            "p(90)": 55.4184,
+            "p(95)": 60.05174,
+            "p(99)": 77.4420159999999,
+            "max": 137.955,
+            "thresholds": {
+                "p(95)<800": false
+            }
+        },
+        "http_req_waiting": {
+            "min": 9.2835,
+            "med": 12.9344,
+            "p(90)": 168.64247999999998,
+            "p(95)": 173.50433,
+            "p(99)": 184.54062200000007,
+            "max": 243.1195
+        },
+        "vus": {
+            "value": 1,
+            "min": 0,
+            "max": 10
+        },
+        "vus_max": {
+            "max": 13,
+            "value": 13,
+            "min": 13
+        }
+    },
+    "setup_data": {
+        "cropIds": [
+            "f071bef0-720c-4a9c-aa57-8e2f9eeba9b3",
+            "b1ba467e-715d-4222-b201-dbca1c56c46c",
+            "512dd330-482f-47e7-9b4a-1ad23a80b283",
+            "a5ee7201-3d19-4b4c-91dd-2a9f9b4b7061",
+            "f50074b8-1350-4fcb-932a-f0e52dbe1095",
+            "792a63b1-e33e-4213-843b-9613591ac953",
+            "9bb52c31-2822-4d17-9712-aa95f7e2296b",
+            "398aebfb-3055-4840-8744-f2db0a40c848",
+            "199d1a11-040d-4a74-96d5-adf8ed557936",
+            "c496c20f-068c-4105-a550-ed1d67ffdf50",
+            "6eb88ab8-f9e7-4fee-bee7-14cb8f000072",
+            "c58437eb-ee3b-48a9-96a6-52b55e741cf7",
+            "555e479b-e7d3-4f6b-a58c-9eba4df5b604",
+            "c4aae1f4-bf1c-4bd4-8234-ee13e878b58c",
+            "7557d1ab-8c7c-4b2a-8896-2db74e054893",
+            "855c44b4-40c7-44a7-8ee7-a14993d9ac05",
+            "eead4def-89eb-46c7-a749-7051f54870f2",
+            "19f7255d-360c-40ea-a65b-fef4d4112de4"
+        ],
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjJmOTg2ZmU1LTE3OGEtNGQzZC1hZmY1LTRkOTE0MGI1OTEyYSIsImVtYWlsIjoiYnV5ZXJAZXhhbXBsZS5jb20iLCJyb2xlIjoiYnV5ZXIiLCJuYW1lIjoiU2hvZWIiLCJpYXQiOjE3OTMwODU0NjAsImV4cCI6MTc5MzE3MTg2MH0.HnVwabVdsOKXKSlEq4jHiw9jHAV_BlC7i--FOYoRr3c"
+    },
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {},
+        "checks": {
+                "crops list 200": {
+                    "path": "::crops list 200",
+                    "id": "8a8e347be3192501d9cdd6dd44887f25",
+                    "passes": 327,
+                    "fails": 0,
+                    "name": "crops list 200"
+                },
+                "crop by id 200": {
+                    "path": "::crop by id 200",
+                    "id": "07619da358fac00a6447828488ac32c7",
+                    "passes": 327,
+                    "fails": 0,
+                    "name": "crop by id 200"
+                },
+                "my orders 200": {
+                    "path": "::my orders 200",
+                    "id": "f8fca2470984f3f5c4679c3c90b27037",
+                    "passes": 103,
+                    "fails": 0,
+                    "name": "my orders 200"
+                },
+                "price prediction 200": {
+                    "path": "::price prediction 200",
+                    "id": "8e4321efa2c1307adc54f0a562a2521a",
+                    "passes": 120,
+                    "fails": 0,
+                    "name": "price prediction 200"
+                }
+            }
+    }
+}
