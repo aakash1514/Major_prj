@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Filter, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -10,6 +10,7 @@ import { Select } from '../../components/ui/Select';
 import { PredictionPanel } from '../../components/common/PredictionPanel';
 import { useAuthStore } from '../../store/authStore';
 import { API_URL } from '../../config';
+import { payForOrder } from '../../utils/razorpay';
 
 interface Crop {
   id: string;
@@ -80,8 +81,12 @@ const normalizeMobile = (value: string) => {
 const getContactError = (contact: string) =>
   normalizeMobile(contact) ? '' : 'Please enter a valid 10-digit mobile number';
 
+const getAdvanceError = (advance: number, total: number) =>
+  advance < 0 || advance > total ? `Advance must be between ₹0 and ₹${total.toFixed(2)}` : '';
+
 export const MarketplacePage: React.FC = () => {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [listedCrops, setListedCrops] = useState<Crop[]>([]);
   const [farmerInfo, setFarmerInfo] = useState<Map<string, FarmerInfo>>(new Map());
   const [searchTerm, setSearchTerm] = useState('');
@@ -280,11 +285,17 @@ export const MarketplacePage: React.FC = () => {
       return;
     }
 
+    const totalAmount = (crop.price || 0) * orderQuantity;
+    const advanceError = getAdvanceError(advanceAmount, totalAmount);
+    if (advanceError) {
+      setOrderError(advanceError);
+      return;
+    }
+
     try {
       setIsPlacingOrder(true);
       setOrderError('');
       const token = localStorage.getItem('token');
-      const totalAmount = (crop.price || 0) * orderQuantity;
 
       const response = await fetch(`${API_URL}/orders`, {
         method: 'POST',
@@ -306,11 +317,30 @@ export const MarketplacePage: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Order created:', data);
-        alert('Order placed successfully!');
         setSelectedCrop(null);
         setOrderQuantity(1);
         setAdvanceAmount(0);
-        // Refresh orders if needed
+
+        // Charge straight away: the chosen advance if it's a partial amount, otherwise the full total
+        const order = data.order;
+        const orderTotal = Number(order.total_amount) || 0;
+        const orderAdvance = Number(order.advance_amount) || 0;
+        const isAdvance = orderAdvance > 0 && orderAdvance < orderTotal;
+
+        try {
+          const result = await payForOrder(order.id, isAdvance ? 'advance' : 'balance', {
+            name: user.name || '',
+            email: user.email || '',
+            contact: normalizeMobile(deliveryContact) || ''
+          });
+          alert(result === 'paid'
+            ? (isAdvance ? `Advance of ₹${orderAdvance.toFixed(2)} paid` : 'Payment successful')
+            : 'Order placed. You can pay from My Orders.');
+        } catch (paymentError) {
+          console.error('Payment after order placement failed:', paymentError);
+          alert('Order placed. You can pay from My Orders.');
+        }
+        navigate('/buyer/orders');
       } else {
         const error = await response.json();
         console.error('Failed to create order:', error);
@@ -586,6 +616,7 @@ export const MarketplacePage: React.FC = () => {
             const crop = listedCrops.find(c => c.id === selectedCrop);
             if (!crop) return null;
             const totalAmount = (crop.price || 0) * orderQuantity;
+            const advanceError = getAdvanceError(advanceAmount, totalAmount);
 
             return (
               <Card className="max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -651,10 +682,13 @@ export const MarketplacePage: React.FC = () => {
                         value={advanceAmount}
                         onChange={(e) => setAdvanceAmount(Math.max(0, parseInt(e.target.value) || 0))}
                         placeholder="0"
+                        error={advanceError || undefined}
                         fullWidth
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        Balance due: ₹{(totalAmount - advanceAmount).toFixed(2)}
+                        {advanceAmount > 0 && advanceAmount < totalAmount
+                          ? `You'll pay the ₹${advanceAmount.toFixed(2)} advance now; balance due later: ₹${(totalAmount - advanceAmount).toFixed(2)}`
+                          : `You'll pay the full ₹${totalAmount.toFixed(2)} now`}
                       </p>
                     </div>
 
@@ -700,7 +734,7 @@ export const MarketplacePage: React.FC = () => {
                       <Button
                         variant="primary"
                         onClick={() => handlePlaceOrder(crop)}
-                        disabled={isPlacingOrder || !!addressError || !!contactError}
+                        disabled={isPlacingOrder || !!addressError || !!contactError || !!advanceError}
                         fullWidth
                       >
                         {isPlacingOrder ? 'Placing Order...' : 'Place Order'}

@@ -14,12 +14,41 @@ const razorpay = RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET
     })
   : null;
 
+const toPaise = (value) => Math.round((parseFloat(value) || 0) * 100);
+
 const mapOrderNumbers = (order) => ({
   ...order,
   total_amount: parseFloat(order.total_amount) || 0,
   advance_amount: parseFloat(order.advance_amount) || 0,
+  amount_paid: parseFloat(order.amount_paid) || 0,
+  balance_due: Math.max(toPaise(order.total_amount) - toPaise(order.amount_paid), 0) / 100,
   quantity: parseFloat(order.quantity) || 0
 });
+
+// Amount (in rupees) the buyer owes for this payment, or an error message.
+// payFor 'advance' charges the chosen advance on an unpaid order; anything else charges the remaining balance.
+const getAmountDue = (order, payFor) => {
+  if (order.status === 'cancelled') {
+    return { error: 'Order is cancelled' };
+  }
+
+  const totalPaise = toPaise(order.total_amount);
+  const paidPaise = toPaise(order.amount_paid);
+  const balancePaise = totalPaise - paidPaise;
+  if (balancePaise <= 0) {
+    return { error: 'Order is already fully paid' };
+  }
+
+  if (payFor === 'advance') {
+    const advancePaise = toPaise(order.advance_amount);
+    if (paidPaise !== 0 || advancePaise <= 0 || advancePaise >= totalPaise) {
+      return { error: 'Advance payment is not available for this order' };
+    }
+    return { amount: advancePaise / 100 };
+  }
+
+  return { amount: balancePaise / 100 };
+};
 
 const createPaymentAuditEntry = async ({
   orderId,
@@ -306,13 +335,13 @@ export const updateOrderPayment = async (req, res) => {
       return res.status(400).json({ error: `paymentStatus must be one of: ${PAYMENT_STATUSES.join(', ')}` });
     }
 
-    const previous = await pool.query('SELECT payment_status, advance_amount FROM orders WHERE id = $1', [id]);
+    const previous = await pool.query('SELECT payment_status, amount_paid FROM orders WHERE id = $1', [id]);
     if (previous.rows.length === 0) {
       return res.status(404).json({ error: 'Order not found' });
     }
 
     const result = await pool.query(
-      'UPDATE orders SET payment_status = $1, advance_amount = COALESCE($2, advance_amount), updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
+      'UPDATE orders SET payment_status = $1, amount_paid = COALESCE($2, amount_paid), updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
       [paymentStatus, advancePaid, id]
     );
 
@@ -324,7 +353,7 @@ export const updateOrderPayment = async (req, res) => {
       previousState: previous.rows[0],
       nextState: {
         payment_status: result.rows[0].payment_status,
-        advance_amount: result.rows[0].advance_amount
+        amount_paid: result.rows[0].amount_paid
       }
     });
 
@@ -351,6 +380,7 @@ export const createRazorpayOrder = async (req, res) => {
 
     const { id: orderId } = req.params;
     const buyerId = req.user.id;
+    const payFor = req.body?.payFor === 'advance' ? 'advance' : 'balance';
 
     const orderResult = await pool.query(
       `SELECT o.*, c.name AS crop_name, c.farmer_id, u.name AS farmer_name
@@ -367,18 +397,11 @@ export const createRazorpayOrder = async (req, res) => {
 
     const order = orderResult.rows[0];
 
-    if (order.payment_status === 'fully-paid') {
-      return res.status(400).json({ error: 'Order is already fully paid' });
+    const due = getAmountDue(order, payFor);
+    if (due.error) {
+      return res.status(400).json({ error: due.error });
     }
-
-    if (order.status === 'cancelled') {
-      return res.status(400).json({ error: 'Order is cancelled' });
-    }
-
-    const amountInPaise = Math.round((parseFloat(order.total_amount) || 0) * 100);
-    if (amountInPaise <= 0) {
-      return res.status(400).json({ error: 'Invalid order amount for payment' });
-    }
+    const amountInPaise = toPaise(due.amount);
 
     const shortOrderId = orderId.replace(/-/g, '').slice(0, 14);
     const receiptId = `agri_${shortOrderId}_${Date.now().toString().slice(-6)}`;
@@ -390,7 +413,8 @@ export const createRazorpayOrder = async (req, res) => {
       notes: {
         orderId,
         buyerId,
-        cropName: order.crop_name || 'Crop order'
+        cropName: order.crop_name || 'Crop order',
+        payFor
       }
     });
 
@@ -408,7 +432,7 @@ export const createRazorpayOrder = async (req, res) => {
       orderId,
       actorId: buyerId,
       action: 'buyer_payment_initiated',
-      note: `Razorpay order ${razorpayOrder.id} created`,
+      note: `Razorpay order ${razorpayOrder.id} created for ${payFor} ₹${due.amount.toFixed(2)}`,
       previousState: {
         payment_status: order.payment_status,
         paid_to_farmer: order.paid_to_farmer || false
@@ -422,6 +446,8 @@ export const createRazorpayOrder = async (req, res) => {
     res.json({
       success: true,
       message: 'Razorpay order created successfully',
+      amount: due.amount,
+      payFor,
       paymentOrder: {
         id: razorpayOrder.id,
         amount: razorpayOrder.amount,
@@ -433,7 +459,7 @@ export const createRazorpayOrder = async (req, res) => {
     });
   } catch (err) {
     console.error('Create Razorpay order error:', err);
-    res.status(500).json({ error: 'Failed to create payment order', details: err.message });
+    res.status(500).json({ error: 'Failed to create payment order' });
   }
 };
 
@@ -493,17 +519,11 @@ export const renderRazorpayCheckout = async (req, res) => {
     }
 
     const order = orderResult.rows[0];
-    if (order.payment_status === 'fully-paid') {
-      return res.status(400).send('Order already paid');
+    const due = getAmountDue(order, 'balance');
+    if (due.error) {
+      return res.status(400).send(due.error);
     }
-    if (order.status === 'cancelled') {
-      return res.status(400).send('Order is cancelled');
-    }
-
-    const amountInPaise = Math.round((parseFloat(order.total_amount) || 0) * 100);
-    if (amountInPaise <= 0) {
-      return res.status(400).send('Invalid order amount');
-    }
+    const amountInPaise = toPaise(due.amount);
 
     const shortOrderId = orderId.replace(/-/g, '').slice(0, 14);
     const receiptId = `agri_${shortOrderId}_${Date.now().toString().slice(-6)}`;
@@ -515,7 +535,8 @@ export const renderRazorpayCheckout = async (req, res) => {
       notes: {
         orderId,
         buyerId,
-        cropName: order.crop_name || 'Crop order'
+        cropName: order.crop_name || 'Crop order',
+        payFor: 'balance'
       }
     });
 
@@ -660,7 +681,8 @@ export const verifyRazorpayPayment = async (req, res) => {
 
     const order = orderResult.rows[0];
 
-    if (order.payment_status === 'fully-paid') {
+    // Same payment verified again (e.g. a retried request): nothing to change
+    if (order.razorpay_payment_id === razorpay_payment_id || order.payment_status === 'fully-paid') {
       return res.json({
         success: true,
         message: 'Order payment already verified',
@@ -682,36 +704,58 @@ export const verifyRazorpayPayment = async (req, res) => {
     }
 
     const payment = await razorpay.payments.fetch(razorpay_payment_id);
+    if (payment.order_id !== razorpay_order_id) {
+      return res.status(400).json({ error: 'Payment does not belong to this Razorpay order' });
+    }
     if (!['captured', 'authorized'].includes(payment.status)) {
       return res.status(400).json({ error: `Payment status is ${payment.status}, not successful` });
     }
 
+    // The amount comes from Razorpay, never from the client
+    const paidNow = (Number(payment.amount) || 0) / 100;
+
+    // amount_paid is incremented in SQL so concurrent verifications can't lose a payment,
+    // and the payment_id guard stops the same payment from being counted twice.
     const updateResult = await pool.query(
       `UPDATE orders
-       SET payment_status = 'fully-paid',
-           advance_amount = total_amount,
+       SET amount_paid = amount_paid + $5,
+           payment_status = CASE WHEN amount_paid + $5 >= total_amount THEN 'fully-paid' ELSE 'advance-paid' END,
            payment_method = 'razorpay',
            razorpay_order_id = $1,
            razorpay_payment_id = $2,
            razorpay_signature = $3,
-           paid_at = CURRENT_TIMESTAMP,
+           paid_at = CASE WHEN amount_paid + $5 >= total_amount THEN CURRENT_TIMESTAMP ELSE paid_at END,
            status = CASE WHEN status = 'pending' THEN 'confirmed' ELSE status END,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4
+       WHERE id = $4 AND razorpay_payment_id IS DISTINCT FROM $2
        RETURNING *`,
-      [razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId]
+      [razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId, paidNow]
     );
+
+    if (updateResult.rows.length === 0) {
+      const current = await pool.query('SELECT * FROM orders WHERE id = $1', [orderId]);
+      return res.json({
+        success: true,
+        message: 'Order payment already verified',
+        order: mapOrderNumbers(current.rows[0])
+      });
+    }
+
+    const newPaid = parseFloat(updateResult.rows[0].amount_paid) || 0;
 
     await createPaymentAuditEntry({
       orderId,
       actorId: buyerId,
       action: 'buyer_payment_verified',
-      note: `Payment ${razorpay_payment_id} verified successfully`,
+      note: `Payment ${razorpay_payment_id} of ₹${paidNow.toFixed(2)} verified; total paid ₹${newPaid.toFixed(2)} (${updateResult.rows[0].payment_status})`,
       previousState: {
         payment_status: order.payment_status,
+        amount_paid: parseFloat(order.amount_paid) || 0,
         paid_to_farmer: order.paid_to_farmer || false
       },
       nextState: {
+        paid_now: paidNow,
+        amount_paid: newPaid,
         payment_status: updateResult.rows[0].payment_status,
         paid_at: updateResult.rows[0].paid_at,
         paid_to_farmer: updateResult.rows[0].paid_to_farmer || false
@@ -725,7 +769,7 @@ export const verifyRazorpayPayment = async (req, res) => {
     });
   } catch (err) {
     console.error('Verify payment error:', err);
-    res.status(500).json({ error: 'Failed to verify payment', details: err.message });
+    res.status(500).json({ error: 'Failed to verify payment' });
   }
 };
 
@@ -738,7 +782,7 @@ export const getOrderPaymentStatus = async (req, res) => {
 
     const result = await pool.query(
       `SELECT o.id, o.buyer_id, o.crop_id, o.status, o.payment_status, o.total_amount,
-              o.advance_amount, o.payment_method, o.razorpay_order_id, o.razorpay_payment_id,
+              o.advance_amount, o.amount_paid, o.payment_method, o.razorpay_order_id, o.razorpay_payment_id,
               o.paid_at, o.paid_to_farmer, o.farmer_paid_at, o.farmer_paid_by,
               c.farmer_id
        FROM orders o
@@ -767,7 +811,8 @@ export const getOrderPaymentStatus = async (req, res) => {
         orderId: order.id,
         paymentStatus: order.payment_status,
         totalAmount: parseFloat(order.total_amount) || 0,
-        paidAmount: parseFloat(order.advance_amount) || 0,
+        paidAmount: parseFloat(order.amount_paid) || 0,
+        balanceDue: Math.max(toPaise(order.total_amount) - toPaise(order.amount_paid), 0) / 100,
         paymentMethod: order.payment_method,
         razorpayOrderId: order.razorpay_order_id,
         razorpayPaymentId: order.razorpay_payment_id,

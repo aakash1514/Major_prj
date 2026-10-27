@@ -32,6 +32,8 @@ interface Order {
   settlement_note?: string | null;
   total_amount: number;
   advance_amount: number;
+  amount_paid: number;
+  balance_due: number;
   quantity: number;
   transporter_id: string | null;
   delivery_address?: string | null;
@@ -416,6 +418,9 @@ export const AdminOrders: React.FC = () => {
                               >
                                 {order.payment_status.replace('-', ' ').toUpperCase()}
                               </Badge>
+                              <p className="text-xs text-gray-600 mt-1">
+                                Paid ₹{(order.amount_paid ?? 0).toFixed(2)} · Due ₹{(order.balance_due ?? 0).toFixed(2)}
+                              </p>
                               {order.payment_status === 'fully-paid' && (
                                 <p className={`text-xs mt-1 ${order.paid_to_farmer ? 'text-emerald-700' : 'text-amber-700'}`}>
                                   {order.paid_to_farmer ? 'Farmer settled' : 'Farmer settlement pending'}
@@ -649,20 +654,20 @@ export const AdminOrders: React.FC = () => {
                           <span className="font-medium">{new Date(selectedOrderData.farmer_paid_at).toLocaleString()}</span>
                         </div>
                       )}
-                      {selectedOrderData.advance_amount && (
-                        <>
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Advance Paid:</span>
-                            <span className="font-medium">₹{selectedOrderData.advance_amount.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Balance Due:</span>
-                            <span className="font-medium">
-                              ₹{(selectedOrderData.total_amount - selectedOrderData.advance_amount).toFixed(2)}
-                            </span>
-                          </div>
-                        </>
+                      {selectedOrderData.advance_amount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Advance Chosen:</span>
+                          <span className="font-medium">₹{selectedOrderData.advance_amount.toFixed(2)}</span>
+                        </div>
                       )}
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Amount Paid:</span>
+                        <span className="font-medium">₹{(selectedOrderData.amount_paid ?? 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Balance Due:</span>
+                        <span className="font-medium">₹{(selectedOrderData.balance_due ?? 0).toFixed(2)}</span>
+                      </div>
 
                       {selectedOrderData.payment_status === 'fully-paid' && !selectedOrderData.paid_to_farmer && (
                         <Button

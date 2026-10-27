@@ -23,6 +23,8 @@ interface Order {
   payment_status: string;
   total_amount: number;
   advance_amount: number;
+  amount_paid: number;
+  balance_due: number;
   quantity: number;
   transporter_id: string | null;
   delivery_address: string | null;
@@ -403,8 +405,12 @@ export const Deliveries: React.FC = () => {
                       <span className="font-semibold text-green-700">₹{selectedOrderData.total_amount.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Advance Paid:</span>
-                      <span className="font-medium">₹{selectedOrderData.advance_amount.toFixed(2)}</span>
+                      <span className="text-gray-500">Amount Paid:</span>
+                      <span className="font-medium">₹{(selectedOrderData.amount_paid ?? 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Balance Due:</span>
+                      <span className="font-medium">₹{(selectedOrderData.balance_due ?? 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Status:</span>

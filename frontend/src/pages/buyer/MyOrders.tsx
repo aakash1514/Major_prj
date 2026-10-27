@@ -12,7 +12,7 @@ import { Select } from '../../components/ui/Select';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Badge } from '../../components/ui/Badge';
 import { useAuthStore } from '../../store/authStore';
-import { createOrderPayment, verifyOrderPayment } from '../../api/payment';
+import { payForOrder } from '../../utils/razorpay';
 import { API_URL } from '../../config';
 
 interface BuyerOrder {
@@ -23,6 +23,8 @@ interface BuyerOrder {
   payment_status: 'pending' | 'advance-paid' | 'fully-paid';
   advance_amount: number;
   total_amount: number;
+  amount_paid: number;
+  balance_due: number;
   quantity: number;
   transporter_id?: string;
   delivery_notes?: string | null;
@@ -67,55 +69,6 @@ const resolveImageUrl = (value?: string) => {
 const toAmount = (value: number | string | null | undefined) =>
   typeof value === 'number' ? value : parseFloat(value || '0') || 0;
 
-interface RazorpaySuccessResponse {
-  razorpay_payment_id: string;
-  razorpay_order_id: string;
-  razorpay_signature: string;
-}
-
-interface RazorpayCheckoutOptions {
-  key: string;
-  amount: number;
-  currency: string;
-  name: string;
-  description: string;
-  order_id: string;
-  handler: (response: RazorpaySuccessResponse) => void;
-  prefill?: {
-    name?: string;
-    email?: string;
-  };
-  theme?: {
-    color?: string;
-  };
-  modal?: {
-    ondismiss?: () => void;
-  };
-}
-
-interface RazorpayFailurePayload {
-  error?: {
-    code?: string;
-    description?: string;
-    reason?: string;
-    source?: string;
-    step?: string;
-    metadata?: {
-      order_id?: string;
-      payment_id?: string;
-    };
-  };
-}
-
-declare global {
-  interface Window {
-    Razorpay?: new (options: RazorpayCheckoutOptions) => {
-      open: () => void;
-      on: (event: 'payment.failed', handler: (payload: RazorpayFailurePayload) => void) => void;
-    };
-  }
-}
-
 export const MyOrders: React.FC = () => {
   const { user } = useAuthStore();
   const [buyerOrders, setBuyerOrders] = useState<BuyerOrder[]>([]);
@@ -128,9 +81,6 @@ export const MyOrders: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<BuyerOrder | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const orderParam = searchParams.get('order');
-
-  const razorpayKey =
-    import.meta.env.VITE_RAZORPAY_KEY || 'rzp_test_Reli2JwWcxfYe5';
 
   // Fetch orders on mount
   useEffect(() => {
@@ -204,94 +154,29 @@ export const MyOrders: React.FC = () => {
     }
   };
 
-  const loadRazorpayScript = async (): Promise<boolean> => {
-    if (window.Razorpay) {
-      return true;
-    }
-
-    return new Promise((resolve) => {
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.async = true;
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
-
+  // Pay Now always charges the remaining balance (the full total if nothing has been paid yet)
   const handlePayNow = async (order: BuyerOrder) => {
-    if (order.status === 'cancelled' || order.payment_status === 'fully-paid') {
+    if (order.status === 'cancelled' || !(toAmount(order.balance_due) > 0)) {
       return;
     }
 
     setIsPaying(order.id);
 
     try {
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded || !window.Razorpay) {
-        throw new Error('Unable to load Razorpay checkout script');
-      }
-
-      const createRes = await createOrderPayment(order.id);
-      const paymentOrder = createRes.paymentOrder;
-
-      const checkoutKey = paymentOrder.keyId || razorpayKey;
-
-      const options: RazorpayCheckoutOptions = {
-        key: checkoutKey,
-        amount: paymentOrder.amount,
-        currency: paymentOrder.currency,
-        name: 'AgriFlow',
-        description: `Payment for Order #${order.id.substring(0, 8)}`,
-        order_id: paymentOrder.id,
-        handler: async (response: RazorpaySuccessResponse) => {
-          try {
-            await verifyOrderPayment(order.id, {
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature
-            });
-
-            alert('Payment successful and verified.');
-            await fetchBuyerOrders();
-          } catch (verifyErr) {
-            const message = verifyErr instanceof Error
-              ? verifyErr.message
-              : 'Payment verification failed';
-            alert(message);
-          } finally {
-            setIsPaying(null);
-          }
-        },
-        prefill: {
-          name: user?.name || '',
-          email: user?.email || ''
-        },
-        theme: {
-          color: '#ca8a04'
-        },
-        modal: {
-          ondismiss: () => {
-            setIsPaying(null);
-          }
-        }
-      };
-
-      const razorpay = new window.Razorpay(options);
-      razorpay.on('payment.failed', (failurePayload: RazorpayFailurePayload) => {
-        const failureError = failurePayload?.error;
-        const message = failureError?.description
-          || failureError?.reason
-          || 'Payment failed at Razorpay checkout';
-
-        console.error('[Razorpay payment.failed]', failurePayload);
-        alert(message);
-        setIsPaying(null);
+      const result = await payForOrder(order.id, 'balance', {
+        name: user?.name || '',
+        email: user?.email || '',
+        contact: order.delivery_contact || ''
       });
-      razorpay.open();
+
+      if (result === 'paid') {
+        alert('Payment successful and verified.');
+        await fetchBuyerOrders();
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to initiate payment';
       alert(message);
+    } finally {
       setIsPaying(null);
     }
   };
@@ -538,28 +423,21 @@ export const MyOrders: React.FC = () => {
                           </div>
                         </div>
 
-                        {order.advance_amount && (
+                        {order.status !== 'cancelled' && (
                           <div className="mt-3 p-3 bg-green-50 rounded-lg">
-                            {(() => {
-                              const advanceAmt = typeof order.advance_amount === 'number' ? order.advance_amount : parseFloat(order.advance_amount || 0);
-                              const totalAmt = typeof order.total_amount === 'number' ? order.total_amount : parseFloat(order.total_amount || 0);
-                              const balance = totalAmt - advanceAmt;
-                              return (
-                                <p className="text-sm text-green-800">
-                                  <strong>Advance Paid:</strong> ₹{advanceAmt.toFixed(2)} 
-                                  <span className="ml-2 text-green-600">
-                                    (Balance: ₹{balance.toFixed(2)})
-                                  </span>
-                                </p>
-                              );
-                            })()}
+                            <p className="text-sm text-green-800">
+                              <strong>Paid:</strong> ₹{toAmount(order.amount_paid).toFixed(2)} / Total ₹{toAmount(order.total_amount).toFixed(2)}
+                              <span className="ml-2 text-green-600">
+                                (Balance: ₹{toAmount(order.balance_due).toFixed(2)})
+                              </span>
+                            </p>
                           </div>
                         )}
                       </div>
 
                       {/* Actions */}
                       <div className="flex flex-row sm:flex-col gap-2 lg:w-32">
-                        {order.status !== 'cancelled' && order.payment_status !== 'fully-paid' && (
+                        {order.status !== 'cancelled' && toAmount(order.balance_due) > 0 && (
                           <Button
                             variant="primary"
                             size="sm"
@@ -568,7 +446,9 @@ export const MyOrders: React.FC = () => {
                             disabled={isPaying === order.id}
                             fullWidth
                           >
-                            {isPaying === order.id ? 'Processing...' : 'Pay Now'}
+                            {isPaying === order.id
+                              ? 'Processing...'
+                              : `${order.payment_status === 'advance-paid' ? 'Pay balance' : 'Pay'} ₹${toAmount(order.balance_due).toFixed(2)}`}
                           </Button>
                         )}
                         <Button
@@ -655,6 +535,8 @@ export const MyOrders: React.FC = () => {
         const imageSrc = resolveImageUrl(crop?.images?.[0]) || FALLBACK_CROP_IMAGE;
         const totalAmt = toAmount(selectedOrder.total_amount);
         const advanceAmt = toAmount(selectedOrder.advance_amount);
+        const paidAmt = toAmount(selectedOrder.amount_paid);
+        const balanceAmt = toAmount(selectedOrder.balance_due);
         const hasDelivery = Boolean(
           selectedOrder.transporter_id || selectedOrder.delivery_notes || selectedOrder.delivery_proof
         );
@@ -705,8 +587,16 @@ export const MyOrders: React.FC = () => {
                       <p className="font-semibold">₹{totalAmt.toFixed(2)}</p>
                     </div>
                     <div>
-                      <p className="text-gray-500">Advance Amount</p>
+                      <p className="text-gray-500">Advance Chosen</p>
                       <p className="font-semibold">₹{advanceAmt.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Amount Paid</p>
+                      <p className="font-semibold text-green-700">₹{paidAmt.toFixed(2)} / ₹{totalAmt.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Balance Due</p>
+                      <p className="font-semibold">₹{balanceAmt.toFixed(2)}</p>
                     </div>
                     <div>
                       <p className="text-gray-500">Order Status</p>

@@ -21,6 +21,8 @@ interface FarmerOrder {
   payment_status: 'pending' | 'advance-paid' | 'fully-paid';
   advance_amount: number;
   total_amount: number;
+  amount_paid: number;
+  balance_due: number;
   quantity: number;
   transporter_id?: string;
   delivery_notes?: string | null;
@@ -360,21 +362,14 @@ export const Orders: React.FC = () => {
                           </div>
                         </div>
 
-                        {order.advance_amount && (
+                        {order.status !== 'cancelled' && (
                           <div className="mt-3 p-3 bg-green-50 rounded-lg">
-                            {(() => {
-                              const advanceAmt = typeof order.advance_amount === 'number' ? order.advance_amount : parseFloat(order.advance_amount || 0);
-                              const totalAmt = typeof order.total_amount === 'number' ? order.total_amount : parseFloat(order.total_amount || 0);
-                              const balance = totalAmt - advanceAmt;
-                              return (
-                                <p className="text-sm text-green-800">
-                                  <strong>Advance Paid:</strong> ₹{advanceAmt.toFixed(2)} 
-                                  <span className="ml-2 text-green-600">
-                                    (Balance: ₹{balance.toFixed(2)})
-                                  </span>
-                                </p>
-                              );
-                            })()}
+                            <p className="text-sm text-green-800">
+                              <strong>Paid:</strong> ₹{toAmount(order.amount_paid).toFixed(2)} / Total ₹{toAmount(order.total_amount).toFixed(2)}
+                              <span className="ml-2 text-green-600">
+                                (Balance: ₹{toAmount(order.balance_due).toFixed(2)})
+                              </span>
+                            </p>
                           </div>
                         )}
                       </div>
@@ -505,8 +500,16 @@ export const Orders: React.FC = () => {
                       <p className="font-semibold">₹{totalAmt.toFixed(2)}</p>
                     </div>
                     <div>
-                      <p className="text-gray-500">Advance Amount</p>
+                      <p className="text-gray-500">Advance Chosen</p>
                       <p className="font-semibold">₹{advanceAmt.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Amount Paid</p>
+                      <p className="font-semibold text-green-700">₹{toAmount(selectedOrder.amount_paid).toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Balance Due</p>
+                      <p className="font-semibold">₹{toAmount(selectedOrder.balance_due).toFixed(2)}</p>
                     </div>
                     <div>
                       <p className="text-gray-500">Order Status</p>

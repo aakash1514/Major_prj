@@ -1,8 +1,12 @@
 import { api } from '../utils/api';
 
+export type PayFor = 'advance' | 'balance';
+
 export interface CreateOrderPaymentResponse {
   success: boolean;
   message: string;
+  amount: number;
+  payFor: PayFor;
   paymentOrder: {
     id: string;
     amount: number;
@@ -18,8 +22,11 @@ export interface VerifyOrderPaymentPayload {
   razorpay_signature: string;
 }
 
-export const createOrderPayment = async (orderId: string): Promise<CreateOrderPaymentResponse> => {
-  return api.post(`/orders/${orderId}/payment/create-order`, {});
+export const createOrderPayment = async (
+  orderId: string,
+  payFor: PayFor = 'balance'
+): Promise<CreateOrderPaymentResponse> => {
+  return api.post(`/orders/${orderId}/payment/create-order`, { payFor });
 };
 
 export const verifyOrderPayment = async (

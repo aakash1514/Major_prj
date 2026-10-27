@@ -118,6 +118,8 @@ export const getBuyerOrders = async (req, res) => {
       ...order,
       total_amount: parseFloat(order.total_amount) || 0,
       advance_amount: parseFloat(order.advance_amount) || 0,
+      amount_paid: parseFloat(order.amount_paid) || 0,
+      balance_due: Math.max(Math.round(((parseFloat(order.total_amount) || 0) - (parseFloat(order.amount_paid) || 0)) * 100), 0) / 100,
       quantity: parseInt(order.quantity) || 0
     }));
 

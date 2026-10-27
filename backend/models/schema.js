@@ -142,6 +142,18 @@ export const initDatabase = async () => {
       ADD COLUMN IF NOT EXISTS delivery_contact VARCHAR(20)
     `);
 
+    // Amount actually received from the buyer, tracked separately from the advance they chose
+    await pool.query(`
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS amount_paid DECIMAL(12,2) NOT NULL DEFAULT 0
+    `);
+    // Backfill for orders paid before amount_paid existed (no-op once filled)
+    await pool.query(`
+      UPDATE orders SET amount_paid = total_amount WHERE payment_status = 'fully-paid' AND amount_paid = 0
+    `);
+    await pool.query(`
+      UPDATE orders SET amount_paid = COALESCE(advance_amount, 0) WHERE payment_status = 'advance-paid' AND amount_paid = 0
+    `);
+
     // Allow 'cancelled' on existing installations (CREATE TABLE IF NOT EXISTS won't update the CHECK)
     await pool.query(`
       ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check;
