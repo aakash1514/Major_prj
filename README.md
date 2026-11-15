@@ -2,7 +2,79 @@
 
 Full stack marketplace for agriculture: backend API, web frontend, mobile app, and ML service.
 
-**Live:** https://agriflow.me · **API health:** https://api.agriflow.me/api/health
+## Demo
+
+[![AgriFlow demo video](https://img.youtube.com/vi/GBNkDY_mssM/maxresdefault.jpg)](https://youtu.be/GBNkDY_mssM)
+
+2–3 minute walkthrough: farmer listing with ML price suggestion, admin approval, buyer order with Razorpay (test mode), agent delivery, and the AWS deployment.
+
+## Screenshots
+
+### Home
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/01-home.png" width="100%"><br><sub>Landing page</sub></td>
+    <td width="50%"></td>
+  </tr>
+</table>
+
+### Farmer
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/02-farmer-dashboard.png" width="100%"><br><sub>Farmer dashboard</sub></td>
+    <td width="50%"><img src="docs/screenshots/03-farmer-dashboard-charts.png" width="100%"><br><sub>Dashboard charts</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/04-farmer-my-crops.png" width="100%"><br><sub>My crops: listings and their status</sub></td>
+    <td width="50%"></td>
+  </tr>
+</table>
+
+### Predictions
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/05-predictions.png" width="100%"><br><sub>Price and demand prediction form</sub></td>
+    <td width="50%"><img src="docs/screenshots/06-prediction-result.png" width="100%"><br><sub>ML prediction result</sub></td>
+  </tr>
+</table>
+
+### Admin
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/07-admin-crop-submissions.png" width="100%"><br><sub>Crop submissions awaiting approval</sub></td>
+    <td width="50%"><img src="docs/screenshots/08-admin-orders.png" width="100%"><br><sub>Orders overview (server-side pagination)</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/09-admin-order-details.png" width="100%"><br><sub>Order details</sub></td>
+    <td width="50%"></td>
+  </tr>
+</table>
+
+### Buyer and payments
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/10-buyer-marketplace.png" width="100%"><br><sub>Marketplace with search and filters</sub></td>
+    <td width="50%"><img src="docs/screenshots/11-buyer-place-order.png" width="100%"><br><sub>Placing an order</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/12-razorpay-checkout.png" width="100%"><br><sub>Razorpay checkout (test mode)</sub></td>
+    <td width="50%"><img src="docs/screenshots/13-razorpay-success.png" width="100%"><br><sub>Payment success</sub></td>
+  </tr>
+</table>
+
+### Agent
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/14-agent-inspection.png" width="100%"><br><sub>Quality inspection</sub></td>
+    <td width="50%"><img src="docs/screenshots/15-agent-delivery.png" width="100%"><br><sub>Delivery details for a completed order</sub></td>
+  </tr>
+</table>
 
 ## Tech Stack
 
@@ -132,6 +204,31 @@ If you expose the backend with ngrok, set `VITE_API_URL` / `EXPO_PUBLIC_API_URL`
 - **Config and logs:** secrets in SSM Parameter Store, container logs in CloudWatch, EC2 managed via Session Manager (no SSH).
 - **CI/CD:** GitHub Actions with OIDC (no stored AWS keys). Pushes to `main` redeploy the backend via SSM Run Command or rebuild the frontend to S3 with a CloudFront invalidation.
 
+### Deployment screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/20-github-actions-runs.png" width="100%"><br><sub>GitHub Actions: every push to main deploys automatically</sub></td>
+    <td width="50%"><img src="docs/screenshots/21-github-actions-backend-deploy.png" width="100%"><br><sub>Backend deploy run triggered by a push to main</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/22-ec2-instance.png" width="100%"><br><sub>EC2: t3.small, no SSH key (Session Manager)</sub></td>
+    <td width="50%"><img src="docs/screenshots/23-ec2-security.png" width="100%"><br><sub>EC2 security group and IAM role</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/24-rds-summary.png" width="100%"><br><sub>RDS: PostgreSQL 18, encrypted, private</sub></td>
+    <td width="50%"><img src="docs/screenshots/25-rds-configuration.png" width="100%"><br><sub>RDS configuration</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/26-cloudfront-distribution.png" width="100%"><br><sub>CloudFront: custom domain + ACM certificate</sub></td>
+    <td width="50%"><img src="docs/screenshots/27-route53-records.png" width="100%"><br><sub>Route 53 DNS records</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/28-https-certificate.png" width="100%"><br><sub>Valid HTTPS certificate on the API domain</sub></td>
+    <td width="50%"></td>
+  </tr>
+</table>
+
 ## Performance
 
 Measured with k6 load tests (50 concurrent users, 60 s runs, median of 3) against PostgreSQL seeded with 10,000 orders and 2,000 crops, all on localhost. ML rows: median of 200 sequential requests, median of 3 runs.
@@ -161,7 +258,7 @@ Raw numbers: [perf/results/summary-2026-10-13.json](perf/results/summary-2026-10
 
 ### Production load test (live AWS deployment)
 
-k6 from a laptop in Pune against `https://api.agriflow.me`: 10 concurrent browsing users (1–3 s think time) plus 1 ML price prediction per second, 3 minutes. Script: [perf/load/prod.js](perf/load/prod.js).
+k6 from a laptop in Pune against the live API (`api.agriflow.me`): 10 concurrent browsing users (1–3 s think time) plus 1 ML price prediction per second, 3 minutes. Script: [perf/load/prod.js](perf/load/prod.js).
 
 | Metric | Result |
 |---|---:|
